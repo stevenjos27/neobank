@@ -20,5 +20,6 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - run: pnpm prisma generate
       - name: Lint, test, and build
         run: pnpm exec nx run-many -t lint test build
