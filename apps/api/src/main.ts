@@ -4,6 +4,9 @@
  */
 
 import 'dotenv/config';
+(BigInt.prototype as any).toJSON = function () {
+  return this.toString();
+};
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app/app.module';
