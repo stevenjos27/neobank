@@ -1,0 +1,15 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: neobank-db
+    environment:
+      POSTGRES_USER: neobank
+      POSTGRES_PASSWORD: neobank_dev
+      POSTGRES_DB: neobank
+    ports:
+      - '5432:5432'
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:

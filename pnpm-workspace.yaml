@@ -1,6 +1,8 @@
 autoInstallPeers: true
 allowBuilds:
   '@parcel/watcher': false
+  '@prisma/engines': true
   less: false
   nx: true
+  prisma: true
   unrs-resolver: false

@@ -3,7 +3,7 @@ import { AppService } from './app.service';
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  constructor(private readonly appService: AppService) { }
 
   @Get()
   getData() {
@@ -11,7 +11,7 @@ export class AppController {
   }
 
   @Get('health')
-  getHealth(){
-    return this.appService.getHealth();
+  async getHealth() {
+    return await this.appService.getHealth();
   }
 }
