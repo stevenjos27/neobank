@@ -6,7 +6,10 @@ import { Roles } from "../auth/roles.decorator";
 import { CreateAccountDto } from "./dto/createAccount.dto";
 import { DepositDto } from "./dto/deposit.dto";
 import { TransferDto } from "./dto/transfer.dto";
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('accounts')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('accounts')
 export class AccountsController {
