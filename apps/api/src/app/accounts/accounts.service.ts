@@ -63,4 +63,8 @@ export class AccountsService {
       return { status: 'ok', fromAccountId, toAccountId, amountPaise };
     });
   }
+
+  async listAccounts() {
+    return this.prisma.account.findMany();
+  }
 }
