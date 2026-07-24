@@ -8,6 +8,24 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: neobank
+          POSTGRES_PASSWORD: neobank_dev
+          POSTGRES_DB: neobank
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U neobank"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://neobank:neobank_dev@localhost:5432/neobank
+      JWT_ACCESS_SECRET: ci-only-access-secret
+      JWT_REFRESH_SECRET: ci-only-refresh-secret
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,5 +39,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - run: pnpm prisma generate
+      - run: pnpm prisma migrate deploy
+      - run: pnpm nx e2e api-e2e
       - name: Lint, test, and build
         run: pnpm exec nx run-many -t lint test build
