@@ -9,12 +9,12 @@ describe('Transfers', () => {
 
   beforeAll(async () => {
     const email = `transfer-${Date.now()}@neobank.test`;
-    const reg = await axios.post('/api/auth/register', { email, password: 'Secret123!', fullName: 'Transfer Tester' }, ok);
+    await axios.post('/api/auth/register', { email, password: 'Secret123!', fullName: 'Transfer Tester' }, ok);
     const login = await axios.post('/api/auth/login', { email, password: 'Secret123!' }, ok);
     auth = { headers: { Authorization: `Bearer ${login.data.accessToken}` } };
 
-    const savings = await axios.post('/api/accounts', { userId: reg.data.id, type: 'SAVINGS' }, { ...ok, ...auth });
-    const current = await axios.post('/api/accounts', { userId: reg.data.id, type: 'CURRENT' }, { ...ok, ...auth });
+    const savings = await axios.post('/api/accounts', { type: 'SAVINGS' }, { ...ok, ...auth });
+    const current = await axios.post('/api/accounts', { type: 'CURRENT' }, { ...ok, ...auth });
     savingsId = savings.data.id;
     currentId = current.data.id;
 

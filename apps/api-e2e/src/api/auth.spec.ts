@@ -19,7 +19,7 @@ describe('Auth flow', () => {
 
   it('logs in and can access a guarded route', async () => {
     const login = await axios.post('/api/auth/login', { email, password }, ok);
-    expect(login.status).toBe(201);
+    expect(login.status).toBe(200);
 
     const me = await axios.get('/api/accounts/00000000-0000-0000-0000-000000000000', {
       ...ok,
@@ -36,7 +36,7 @@ describe('Auth flow', () => {
   it('refreshes the token pair', async () => {
     const login = await axios.post('/api/auth/login', { email, password }, ok);
     const res = await axios.post('/api/auth/refresh', { refreshToken: login.data.refreshToken }, ok);
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
     expect(res.data).toHaveProperty('accessToken');
   });
 });
