@@ -15,6 +15,7 @@ jobs:
           POSTGRES_USER: neobank
           POSTGRES_PASSWORD: neobank_dev
           POSTGRES_DB: neobank
+          WEB_ORIGINS: http://localhost:4200
         ports:
           - 5432:5432
         options: >-
