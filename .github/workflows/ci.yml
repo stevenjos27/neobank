@@ -15,7 +15,6 @@ jobs:
           POSTGRES_USER: neobank
           POSTGRES_PASSWORD: neobank_dev
           POSTGRES_DB: neobank
-          WEB_ORIGINS: http://localhost:4200
         ports:
           - 5432:5432
         options: >-
@@ -27,6 +26,7 @@ jobs:
       DATABASE_URL: postgresql://neobank:neobank_dev@localhost:5432/neobank
       JWT_ACCESS_SECRET: ci-only-access-secret
       JWT_REFRESH_SECRET: ci-only-refresh-secret
+      WEB_ORIGINS: http://localhost:4200
     steps:
       - uses: actions/checkout@v4
         with:
