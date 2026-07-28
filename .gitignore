@@ -46,3 +46,7 @@ Thumbs.db
 .claude/settings.local.json
 
 /generated/
+
+# Next.js
+.next
+out
