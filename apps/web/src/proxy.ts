@@ -5,6 +5,10 @@ export async function proxy(request: NextRequest) {
   const accessToken = request.cookies.get('accessToken')?.value;
   const refreshToken = request.cookies.get('refreshToken')?.value;
 
+  if (request.nextUrl.pathname.startsWith('/dashboard') && !accessToken && !refreshToken) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
   if (accessToken || !refreshToken) return NextResponse.next();
 
   const res = await fetch(`${process.env.API_URL}/auth/refresh`, {
