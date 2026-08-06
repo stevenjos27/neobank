@@ -1,32 +1,59 @@
-'use client';
+import LogoutButton from '@/components/logout-button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatPaise } from '@/lib/money';
+import { apiFetch } from '@/lib/server/api';
 
-import { Button } from '@/components/ui/button';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+type Account = {
+  id: string;
+  accountNumber: string;
+  type: 'SAVINGS' | 'CURRENT';
+  balancePaise: string;
+  currency: string;
+  createdAt: string;
+};
 
-export default function DashboardPage() {
-  const [error, setError] = useState('');
-  const router = useRouter();
-  const logout = async () => {
-    try {
-      const res = await fetch('/api/auth/logout', {
-        method: 'POST',
-      });
-      if (!res.ok) {
-        const body = await res.json();
-        setError(body.message);
-        return;
-      }
-      router.push('/login');
-    } catch {
-      setError('Something went wrong. Please try again.');
-    }
-  };
+export default async function DashboardPage() {
+  const res = await apiFetch('/accounts');
+  if (!res.ok) {
+    return (
+      <p className="p-8 text-destructive">Could not load your accounts.</p>
+    );
+  }
+  const accounts: Account[] = await res.json();
 
   return (
-    <div>
-      <Button onClick={logout}>Logout</Button>
-      {error && <p className="text-sm text-destructive">{error}</p>}
+    <div className="max-w-4xl mx-auto p-8 space-y-6">
+      <header className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Your Accounts</h1>
+        <LogoutButton />
+      </header>
+      {accounts.length === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            No accounts yet.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {accounts.map((account) => (
+            <Card key={account.id}>
+              <CardHeader>
+                <CardTitle className="text-base font-medium">
+                  {account.type}
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  •••• {account.accountNumber.slice(-4)}
+                </p>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">
+                  {formatPaise(account.balancePaise)}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
