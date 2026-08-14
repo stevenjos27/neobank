@@ -74,4 +74,10 @@ describe('Transfers', () => {
     expect(savings.data.balancePaise).toBe('0');
     expect(current.data.balancePaise).toBe('300000');
   });
+
+  it('returns latest 50 transactions for the account', async () => {
+    const res = await axios.get(`/api/accounts/${savingsId}/transactions`, { ...ok, ...auth });
+    expect(res.status).toBe(200);
+    expect(res.data.some((t: { type: string; amountPaise: string }) => t.type === 'TRANSFER_OUT' && t.amountPaise === '100000',)).toBe(true);
+  });
 });

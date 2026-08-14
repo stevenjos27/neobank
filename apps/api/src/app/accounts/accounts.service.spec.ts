@@ -6,6 +6,18 @@ import { PrismaService } from "../../prisma/prisma.service";
 describe('AccountsService', () => {
   let service: AccountsService;
 
+  let prisma: {
+    $transaction: jest.Mock;
+    account: {
+      create: jest.Mock;
+      findFirst: jest.Mock;
+      findMany: jest.Mock;
+    },
+    transaction: {
+      findMany: jest.Mock;
+    }
+  }
+
   const tx = {
     account: {
       update: jest.fn(),
@@ -20,19 +32,27 @@ describe('AccountsService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+
+    prisma = {
+      $transaction: jest.fn(
+        async (fn: (transactionClient: typeof tx) => unknown) => fn(tx),
+      ),
+      account: {
+        create: jest.fn(),
+        findFirst: jest.fn(),
+        findMany: jest.fn(),
+      },
+      transaction: {
+        findMany: jest.fn(),
+      },
+    };
+
     const module = await Test.createTestingModule({
       providers: [
         AccountsService,
         {
           provide: PrismaService,
-          useValue: {
-            $transaction: jest.fn(async (fn: (tx: unknown) => unknown) => fn(tx)),
-            account: {
-              create: jest.fn(),
-              findUniqueOrThrow: jest.fn(),
-              findMany: jest.fn()
-            },
-          },
+          useValue: prisma,
         },
       ]
     }).compile();
@@ -111,5 +131,25 @@ describe('AccountsService', () => {
 
     await expect(service.transfer('u1', 'a', 'ghost', 100n)).rejects.toThrow(NotFoundException);
     expect(tx.transaction.createMany).not.toHaveBeenCalled();
+  });
+
+  it('listTransactions 404s for an account that is not yours, without querying transactions', async () => {
+    prisma.account.findFirst.mockResolvedValue(null);
+
+    await expect(service.listTransactions('a', 'u1')).rejects.toThrow(NotFoundException);
+    expect(prisma.transaction.findMany).not.toHaveBeenCalled();
+  });
+
+  it('listTransactions returns the account ledger newest first, capped at 50', async () => {
+    prisma.account.findFirst.mockResolvedValue({ id: 'a', userId: 'u1' });
+    prisma.transaction.findMany.mockResolvedValue([]);
+
+    await service.listTransactions('a', 'u1');
+
+    expect(prisma.transaction.findMany).toHaveBeenCalledWith({
+      where: { accountId: 'a' },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
   });
 });

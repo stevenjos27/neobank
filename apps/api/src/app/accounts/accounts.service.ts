@@ -79,4 +79,14 @@ export class AccountsService {
       return this.prisma.account.findMany();
     return this.prisma.account.findMany({ where: { userId } });
   }
+
+  async listTransactions(accountId: string, userId: string) {
+    await this.getAccount(accountId, userId);
+
+    return this.prisma.transaction.findMany({
+      where: { accountId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+  }
 }

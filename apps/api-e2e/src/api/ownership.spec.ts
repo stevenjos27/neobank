@@ -71,4 +71,9 @@ describe('Ownership', () => {
     expect(accountB.data.length).toBe(1);
     expect(accountB.data[0].id).toBe(accountB_ID);
   });
+
+  it("B cannot read A's transactions (404)", async () => {
+    const res = await axios.get(`/api/accounts/${accountA_ID}/transactions`, { ...ok, ...authB });
+    expect(res.status).toBe(404);
+  });
 });

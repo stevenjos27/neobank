@@ -41,4 +41,9 @@ export class AccountsController {
     return this.accounts.listAccounts(user.sub, user.role);
   }
 
+  @Get(':id/transactions')
+  listTransactions(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.accounts.listTransactions(id, user.sub);
+  }
+
 }
