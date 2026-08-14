@@ -32,6 +32,21 @@ describe('Transfers', () => {
     expect(current.data.balancePaise).toBe('100000');
   });
 
+  it('rejects a transfer to a nonexistent destination and leaves balances untouched', async () => {
+    const res = await axios.post('/api/accounts/transfer', {
+      fromAccountId: savingsId,
+      toAccountId: '00000000-0000-4000-8000-000000000000',
+      amountPaise: 50000,
+    }, { ...ok, ...auth });
+
+    expect(res.status).toBe(404);
+
+    const savings = await axios.get(`/api/accounts/${savingsId}`, { ...ok, ...auth });
+    const current = await axios.get(`/api/accounts/${currentId}`, { ...ok, ...auth });
+    expect(savings.data.balancePaise).toBe('200000');
+    expect(current.data.balancePaise).toBe('100000');
+  });
+
   it('rejects a transfer exceeding the balance', async () => {
     const res = await axios.post('/api/accounts/transfer', { fromAccountId: savingsId, toAccountId: currentId, amountPaise: 999999999, description: 'ok' }, { ...ok, ...auth });
 

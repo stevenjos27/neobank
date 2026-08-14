@@ -54,10 +54,14 @@ export class AccountsService {
         throw new BadRequestException('insufficient funds or account not found');
       }
 
-      await tx.account.update({
+      const credited = await tx.account.updateMany({
         where: { id: toAccountId },
         data: { balancePaise: { increment: amountPaise } },
       });
+
+      if (credited.count === 0) {
+        throw new NotFoundException('destination account not found');
+      }
 
       await tx.transaction.createMany({
         data: [

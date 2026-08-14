@@ -1,16 +1,10 @@
+import DepositForm from '@/components/deposit-form';
 import LogoutButton from '@/components/logout-button';
+import TransferForm from '@/components/transfer-form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatPaise } from '@/lib/money';
 import { apiFetch } from '@/lib/server/api';
-
-type Account = {
-  id: string;
-  accountNumber: string;
-  type: 'SAVINGS' | 'CURRENT';
-  balancePaise: string;
-  currency: string;
-  createdAt: string;
-};
+import { Account } from '@/lib/types';
 
 export default async function DashboardPage() {
   const res = await apiFetch('/accounts');
@@ -34,24 +28,30 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {accounts.map((account) => (
-            <Card key={account.id}>
-              <CardHeader>
-                <CardTitle className="text-base font-medium">
-                  {account.type}
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  •••• {account.accountNumber.slice(-4)}
-                </p>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">
-                  {formatPaise(account.balancePaise)}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
+        <div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {accounts.map((account) => (
+              <Card key={account.id}>
+                <CardHeader>
+                  <CardTitle className="text-base font-medium">
+                    {account.type}
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    •••• {account.accountNumber.slice(-4)}
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold">
+                    {formatPaise(account.balancePaise)}
+                  </p>
+                  <DepositForm accountId={account.id} />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <div>
+            <TransferForm accounts={accounts} />
+          </div>
         </div>
       )}
     </div>

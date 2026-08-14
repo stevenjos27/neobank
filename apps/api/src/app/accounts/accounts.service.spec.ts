@@ -7,8 +7,15 @@ describe('AccountsService', () => {
   let service: AccountsService;
 
   const tx = {
-    account: { update: jest.fn(), updateMany: jest.fn(), findUniqueOrThrow: jest.fn() },
-    transaction: { create: jest.fn(), createMany: jest.fn() },
+    account: {
+      update: jest.fn(),
+      updateMany: jest.fn(),
+      findUniqueOrThrow: jest.fn()
+    },
+    transaction: {
+      create: jest.fn(),
+      createMany: jest.fn()
+    },
   };
 
   beforeEach(async () => {
@@ -20,7 +27,11 @@ describe('AccountsService', () => {
           provide: PrismaService,
           useValue: {
             $transaction: jest.fn(async (fn: (tx: unknown) => unknown) => fn(tx)),
-            account: { create: jest.fn(), findUniqueOrThrow: jest.fn(), findMany: jest.fn() },
+            account: {
+              create: jest.fn(),
+              findUniqueOrThrow: jest.fn(),
+              findMany: jest.fn()
+            },
           },
         },
       ]
@@ -40,7 +51,7 @@ describe('AccountsService', () => {
     tx.account.updateMany.mockResolvedValue({ count: 0 });
 
     await expect(service.transfer('u1', 'a', 'b', 100n)).rejects.toThrow('insufficient funds');
-    expect(tx.account.update).not.toHaveBeenCalled();
+    expect(tx.account.updateMany).toHaveBeenCalledTimes(1);
     expect(tx.transaction.createMany).not.toHaveBeenCalled();
   });
 
@@ -54,7 +65,7 @@ describe('AccountsService', () => {
       data: { balancePaise: { decrement: 100n } },
     });
 
-    expect(tx.account.update).toHaveBeenCalledWith({
+    expect(tx.account.updateMany).toHaveBeenCalledWith({
       where: { id: 'b' },
       data: { balancePaise: { increment: 100n } },
     });
@@ -91,5 +102,14 @@ describe('AccountsService', () => {
     expect(tx.transaction.create).toHaveBeenCalledWith({
       data: { accountId: 'a', type: 'DEPOSIT', amountPaise: 100n, description: 'top-up' },
     });
+  });
+
+  it('404s when the destination account does not exist and rolls back', async () => {
+    tx.account.updateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+
+    await expect(service.transfer('u1', 'a', 'ghost', 100n)).rejects.toThrow(NotFoundException);
+    expect(tx.transaction.createMany).not.toHaveBeenCalled();
   });
 });
