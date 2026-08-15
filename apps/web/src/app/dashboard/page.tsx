@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatPaise } from '@/lib/money';
 import { apiFetch } from '@/lib/server/api';
 import { Account } from '@/lib/types';
+import Link from 'next/link';
 
 export default async function DashboardPage() {
   const res = await apiFetch('/accounts');
@@ -36,9 +37,11 @@ export default async function DashboardPage() {
                   <CardTitle className="text-base font-medium">
                     {account.type}
                   </CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    •••• {account.accountNumber.slice(-4)}
-                  </p>
+                  <Link href={`/accounts/${account.id}`}>
+                    <p className="text-sm text-muted-foreground">
+                      •••• {account.accountNumber.slice(-4)}
+                    </p>
+                  </Link>
                 </CardHeader>
                 <CardContent>
                   <p className="text-2xl font-bold">
