@@ -1,5 +1,6 @@
 import DepositForm from '@/components/deposit-form';
 import LogoutButton from '@/components/logout-button';
+import ThemeToggle from '@/components/theme-toggle';
 import TransferForm from '@/components/transfer-form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatPaise } from '@/lib/money';
@@ -20,7 +21,10 @@ export default async function DashboardPage() {
     <div className="max-w-4xl mx-auto p-8 space-y-6">
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Your Accounts</h1>
-        <LogoutButton />
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <LogoutButton />
+        </div>
       </header>
       {accounts.length === 0 ? (
         <Card>

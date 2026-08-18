@@ -1,5 +1,6 @@
 'use client';
 
+import { AuthShell } from '@/components/auth-shell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -39,8 +40,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <Card className="w-full max-w-md">
+    <AuthShell active="login">
+      <Card className="w-full">
         <CardHeader>
           <CardTitle>Sign in to your NeoBank Account</CardTitle>
         </CardHeader>
@@ -74,6 +75,6 @@ export default function LoginPage() {
           {error && <p className="text-sm text-destructive">{error}</p>}
         </CardContent>
       </Card>
-    </div>
+    </AuthShell>
   );
 }
