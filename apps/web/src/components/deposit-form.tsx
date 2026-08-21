@@ -6,7 +6,13 @@ import { Label } from './ui/label';
 import { Button } from './ui/button';
 import { useRouter } from 'next/navigation';
 
-export default function DepositForm({ accountId }: { accountId: string }) {
+export default function DepositForm({
+  accountId,
+  onSuccess,
+}: {
+  accountId: string;
+  onSuccess?: () => void;
+}) {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
@@ -36,6 +42,7 @@ export default function DepositForm({ accountId }: { accountId: string }) {
         return;
       }
       router.refresh();
+      onSuccess?.();
       setAmount('');
       setDescription('');
     } catch {

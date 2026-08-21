@@ -37,10 +37,10 @@
   "exclude": [
     "node_modules",
     "jest.config.ts",
-    "jest.config.cts",
-    "**/*.spec.ts",
-    "**/*.test.ts",
-    "src/**/*.spec.ts",
-    "src/**/*.test.ts"
+    "jest.config.cts"
+    // "**/*.spec.ts",
+    // "**/*.test.ts",
+    // "src/**/*.spec.ts",
+    // "src/**/*.test.ts"
   ]
 }

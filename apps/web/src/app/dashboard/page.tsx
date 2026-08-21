@@ -1,12 +1,19 @@
-import DepositForm from '@/components/deposit-form';
 import LogoutButton from '@/components/logout-button';
 import ThemeToggle from '@/components/theme-toggle';
-import TransferForm from '@/components/transfer-form';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { formatPaise } from '@/lib/money';
 import { apiFetch } from '@/lib/server/api';
 import { Account } from '@/lib/types';
 import Link from 'next/link';
+import DepositDialog from '@/components/deposit-dialog';
+import TransferDialog from '@/components/transfer-dialog';
+import CreateAccountDialog from '@/components/create-account-dialog';
 
 export default async function DashboardPage() {
   const res = await apiFetch('/accounts');
@@ -26,14 +33,8 @@ export default async function DashboardPage() {
           <LogoutButton />
         </div>
       </header>
-      {accounts.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            No accounts yet.
-          </CardContent>
-        </Card>
-      ) : (
-        <div>
+      {accounts.length > 0 && (
+        <div className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2">
             {accounts.map((account) => (
               <Card key={account.id}>
@@ -41,26 +42,53 @@ export default async function DashboardPage() {
                   <CardTitle className="text-base font-medium">
                     {account.type}
                   </CardTitle>
-                  <Link href={`/accounts/${account.id}`}>
-                    <p className="text-sm text-muted-foreground">
-                      •••• {account.accountNumber.slice(-4)}
-                    </p>
-                  </Link>
+
+                  <p className="text-sm text-muted-foreground">
+                    •••• {account.accountNumber.slice(-4)}
+                  </p>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                   <p className="text-2xl font-bold">
                     {formatPaise(account.balancePaise)}
                   </p>
-                  <DepositForm accountId={account.id} />
+                  <Link href={`/accounts/${account.id}`}>
+                    <p className="text-primary hover:underline">
+                      View transactions →
+                    </p>
+                  </Link>
                 </CardContent>
+                <CardFooter>
+                  <DepositDialog accountId={account.id} />
+                </CardFooter>
               </Card>
             ))}
           </div>
-          <div>
-            <TransferForm accounts={accounts} />
-          </div>
         </div>
       )}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {accounts.length > 0 && (
+          <>
+            <TransferDialog accounts={accounts} />
+            <CreateAccountDialog />
+          </>
+        )}
+        {accounts.length === 0 && (
+          <Card>
+            <CardContent className="py-10 text-center space-y-4">
+              <div>
+                <p className="font-medium">No accounts yet</p>
+                <p className="text-sm text-muted-foreground">
+                  Open your first account to start banking.
+                </p>
+              </div>
+              <div className="flex justify-center">
+                <CreateAccountDialog />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }
