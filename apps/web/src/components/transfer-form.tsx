@@ -109,7 +109,6 @@ export default function TransferForm({
 
       <Label htmlFor="description">Description</Label>
       <Input
-        required
         id="description"
         type="text"
         value={description}
