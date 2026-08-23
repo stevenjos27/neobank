@@ -10,7 +10,8 @@
       "command": "next dev -p 4200",
       "options": {
         "cwd": "apps/web"
-      }
+      },
+      "continuous": true
     }
   }
 }
