@@ -1,98 +1,116 @@
-# Neobank
-
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
-
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
-
-[Learn more about this workspace setup and its capabilities](https://nx.dev/getting-started/intro#learn-nx?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
-
-## Run tasks
-
-To run tasks with Nx use:
-
-```sh
-npx nx <target> <project-name>
-```
-
-For example:
-
-```sh
-npx nx build myproject
-```
-
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
-
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Add new projects
-
-While you could add new projects to your workspace manually, you might want to leverage [Nx plugins](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) and their [code generation](https://nx.dev/features/generate-code?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) feature.
-
-To install a new plugin you can use the `nx add` command. Here's an example of adding the React plugin:
-```sh
-npx nx add @nx/react
-```
-
-Use the plugin's generator to create new projects. For example, to create a new React app or library:
-
-```sh
-# Generate an app
-npx nx g @nx/react:app demo
-
-# Generate a library
-npx nx g @nx/react:lib some-lib
-```
-
-You can use `npx nx list` to get a list of installed plugins. Then, run `npx nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
-
-[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) | [Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Set up CI!
-
-### Step 1
-
-To connect to Nx Cloud, run the following command:
-
-```sh
-npx nx connect
-```
-
-Connecting to Nx Cloud ensures a [fast and scalable CI](https://nx.dev/ci/intro/why-nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
-
-- [Remote caching](https://nx.dev/ci/features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/ci/features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/ci/features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/ci/features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-### Step 2
-
-Use the following command to configure a CI workflow for your workspace:
-
-```sh
-npx nx g ci-workflow
-```
-
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Install Nx Console
-
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
-
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Useful links
-
-Learn more:
-
-- [Learn more about this workspace setup](https://nx.dev/getting-started/intro#learn-nx?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+# NeoBank
 
 [![CI](https://github.com/stevenjos27/neobank/actions/workflows/ci.yml/badge.svg)](https://github.com/stevenjos27/neobank/actions/workflows/ci.yml)
+
+A full-stack banking application built with Indian retail-banking conventions: SAVINGS and CURRENT accounts in INR, balances stored as paise, and money movement that is transactionally safe under concurrent load.
+
+**Live:** [neobank-smoky.vercel.app](https://neobank-smoky.vercel.app) · **API:** [/api/health](https://neobank-0erb.onrender.com/api/health) · **API docs:** [Swagger](https://neobank-0erb.onrender.com/docs)
+
+> The API runs on Render's free tier and sleeps when idle — the first request after a quiet period can take 30–60 seconds.
+
+## Stack
+
+| Layer | Choice |
+|---|---|
+| Monorepo | Nx |
+| API | NestJS, Prisma 7, PostgreSQL (pgvector image) |
+| Web | Next.js (App Router), React 19, Tailwind v4, shadcn/ui |
+| Auth | argon2 + JWT (15m access / 7d refresh), httpOnly cookies |
+| Tests | Jest, Testing Library, Playwright |
+| Hosting | Vercel (web), Render (API), Neon (Postgres) |
+
+## Architecture
+
+The browser never talks to the API directly. Next.js route handlers act as a **backend-for-frontend**: they call the NestJS API server-to-server and store the resulting JWTs in `httpOnly`, `Secure`, `SameSite=Lax` cookies.
+
+```
+browser ──same-origin──▶ Next.js route handlers ──Bearer──▶ NestJS API ──▶ Postgres
+             (cookies)          (BFF, holds tokens)
+```
+
+Consequences worth noting:
+
+- **No token is ever readable by JavaScript**, so an XSS bug cannot exfiltrate a session.
+- **Token refresh is invisible.** The access cookie's `maxAge` mirrors the JWT's 15-minute life, so "access cookie missing, refresh cookie present" *is* the expiry signal. `proxy.ts` catches that on any request, refreshes server-side, rewrites the request's own cookie header so the in-flight request succeeds, and sets fresh cookies on the response.
+- **The client bundle contains no secrets and no API URL** — the only server-side config the web app needs is `API_URL`.
+
+### Money safety
+
+Balances are `BigInt` paise, never floats. Transfers run inside `prisma.$transaction` with an atomic conditional decrement (`updateMany` with `balancePaise: { gte: amount }`), so there is no check-then-act race — proven by an e2e test that fires 10 concurrent transfers and asserts exactly two succeed with no money created or destroyed.
+
+### Ownership
+
+Every account operation derives `userId` from the verified JWT, never from the request body. Reading, depositing into, or transferring from an account you don't own returns the same response as an account that doesn't exist (404 / vague 400), so account IDs can't be enumerated.
+
+## Running locally
+
+Prerequisites: Node 24, pnpm, Docker.
+
+```bash
+pnpm install
+docker compose up -d                 # Postgres on :5432
+cp .env.example .env                 # then fill in the values
+pnpm prisma migrate deploy
+pnpm prisma generate
+
+pnpm nx serve api                    # http://localhost:3000/api
+pnpm nx dev web                      # http://localhost:4200
+```
+
+`.env` (repo root, API):
+
+```
+DATABASE_URL="postgresql://neobank:neobank_dev@localhost:5432/neobank"
+JWT_ACCESS_SECRET="dev-access-secret-change-me"
+JWT_REFRESH_SECRET="dev-refresh-secret-change-me"
+WEB_ORIGINS="http://localhost:4200"
+```
+
+`apps/web/.env.local` (web):
+
+```
+API_URL=http://localhost:3000/api
+```
+
+Missing variables fail fast at boot rather than surfacing as confusing runtime errors.
+
+## Tests
+
+```bash
+pnpm nx test api        # unit: services, money-safety guards, ownership
+pnpm nx e2e api-e2e     # HTTP: auth, transfers, concurrency, ownership
+pnpm nx test web        # unit: money formatting, login form
+pnpm nx e2e web-e2e     # Playwright: register → account → deposit → transfer → history
+```
+
+CI runs all four against a Postgres service container on every push.
+
+## Project structure
+
+```
+apps/
+  api/        NestJS — auth, accounts, transfers, transactions
+  api-e2e/    HTTP-level tests against a real server + database
+  web/        Next.js — BFF route handlers, dashboard, auth pages
+  web-e2e/    Playwright user-journey test
+prisma/       schema and migrations
+```
+
+## Known gaps
+
+Deliberate, deferred rather than overlooked:
+
+- Refresh tokens are stateless — no server-side revocation or logout-everywhere.
+- Account numbers are generated randomly with no collision retry.
+- Transfers require the recipient's account **ID**; a real bank would look up by account number + IFSC.
+- No rate limiting or `helmet`.
+- The `Payee` model (with IFSC) exists in the schema but has no endpoints yet.
+- Admins reuse the customer dashboard, which shows every account — the admin surface gets its own UI in a later phase.
+
+## Roadmap
+
+- [x] **Phase 1** — NestJS API, Prisma, auth, money-safe transfers, deployed
+- [x] **Phase 2** — Next.js customer web app, BFF auth, dashboard, transfers, history
+- [ ] **Phase 3** — AI features over pgvector (OpenAI, provider-agnostic wrapper)
+- [ ] **Phase 4** — Angular admin surface
+- [ ] **Phase 5** — Flutter mobile app
