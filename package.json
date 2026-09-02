@@ -2,7 +2,14 @@
   "name": "@neobank/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "db:seed": "prisma db seed",
+    "db:generate": "prisma generate",
+    "db:reset": "prisma migrate reset --force && pnpm db:generate && pnpm db:seed",
+    "db:studio": "prisma studio",
+    "db:verify": "tsx prisma/verify.ts",
+    "db:clean": "tsx prisma/clean.ts"
+  },
   "private": true,
   "devDependencies": {
     "@eslint/js": "^9.8.0",
@@ -53,6 +60,7 @@
     "ts-jest": "^29.4.7",
     "ts-node": "10.9.1",
     "tslib": "^2.3.0",
+    "tsx": "^4.23.12",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.58.0",
     "webpack": "^5.101.3",
@@ -67,6 +75,7 @@
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/platform-express": "^11.0.0",
     "@nestjs/swagger": "^11.4.6",
+    "@nestjs/throttler": "^6.5.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@tailwindcss/postcss": "^4.3.3",
