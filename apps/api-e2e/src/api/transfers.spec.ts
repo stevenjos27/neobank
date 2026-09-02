@@ -8,7 +8,7 @@ describe('Transfers', () => {
   let currentId: string;
 
   beforeAll(async () => {
-    const email = `transfer-${Date.now()}@neobank.test`;
+    const email = `transfer-${Date.now()}@e2e.neobank.test`;
     await axios.post('/api/auth/register', { email, password: 'Secret123!', fullName: 'Transfer Tester' }, ok);
     const login = await axios.post('/api/auth/login', { email, password: 'Secret123!' }, ok);
     auth = { headers: { Authorization: `Bearer ${login.data.accessToken}` } };
@@ -75,9 +75,10 @@ describe('Transfers', () => {
     expect(current.data.balancePaise).toBe('300000');
   });
 
-  it('returns latest 50 transactions for the account', async () => {
+  it('returns the account ledger newest-first in a pagination envelope', async () => {
     const res = await axios.get(`/api/accounts/${savingsId}/transactions`, { ...ok, ...auth });
     expect(res.status).toBe(200);
-    expect(res.data.some((t: { type: string; amountPaise: string }) => t.type === 'TRANSFER_OUT' && t.amountPaise === '100000',)).toBe(true);
+    expect(res.data.items.some((t: { type: string; amountPaise: string }) => t.type === 'TRANSFER_OUT' && t.amountPaise === '100000',)).toBe(true);
+    expect(res.data).toHaveProperty('nextCursor');
   });
 });
