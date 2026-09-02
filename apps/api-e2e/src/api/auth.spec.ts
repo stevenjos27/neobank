@@ -3,7 +3,7 @@ import axios from 'axios';
 const ok = { validateStatus: () => true };
 
 describe('Auth flow', () => {
-  const email = `e2e-${Date.now()}@neobank.test`;
+  const email = `e2e-${Date.now()}@e2e.neobank.test`;
   const password = 'Secret123!';
 
   it('registers a new user', async () => {

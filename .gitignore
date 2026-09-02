@@ -4,6 +4,7 @@
 dist
 tmp
 out-tsc
+docs
 
 # dependencies
 node_modules
@@ -51,4 +52,5 @@ Thumbs.db
 .next
 out
 /apps/web/.env.local
-docs
+
+prisma/.seed-facts.json

@@ -36,6 +36,7 @@ export default defineConfig({
     reuseExistingServer: true,
     cwd: workspaceRoot,
   },
+  globalTeardown: './src/global-teardown.ts',
   projects: [
     {
       name: 'chromium',

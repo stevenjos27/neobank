@@ -10,14 +10,14 @@ A full-stack banking application built with Indian retail-banking conventions: S
 
 ## Stack
 
-| Layer | Choice |
-|---|---|
-| Monorepo | Nx |
-| API | NestJS, Prisma 7, PostgreSQL (pgvector image) |
-| Web | Next.js (App Router), React 19, Tailwind v4, shadcn/ui |
-| Auth | argon2 + JWT (15m access / 7d refresh), httpOnly cookies |
-| Tests | Jest, Testing Library, Playwright |
-| Hosting | Vercel (web), Render (API), Neon (Postgres) |
+| Layer    | Choice                                                   |
+| -------- | -------------------------------------------------------- |
+| Monorepo | Nx                                                       |
+| API      | NestJS, Prisma 7, PostgreSQL (pgvector image)            |
+| Web      | Next.js (App Router), React 19, Tailwind v4, shadcn/ui   |
+| Auth     | argon2 + JWT (15m access / 7d refresh), httpOnly cookies |
+| Tests    | Jest, Testing Library, Playwright                        |
+| Hosting  | Vercel (web), Render (API), Neon (Postgres)              |
 
 ## Architecture
 
@@ -31,7 +31,7 @@ browser ──same-origin──▶ Next.js route handlers ──Bearer──▶ 
 Consequences worth noting:
 
 - **No token is ever readable by JavaScript**, so an XSS bug cannot exfiltrate a session.
-- **Token refresh is invisible.** The access cookie's `maxAge` mirrors the JWT's 15-minute life, so "access cookie missing, refresh cookie present" *is* the expiry signal. `proxy.ts` catches that on any request, refreshes server-side, rewrites the request's own cookie header so the in-flight request succeeds, and sets fresh cookies on the response.
+- **Token refresh is invisible.** The access cookie's `maxAge` mirrors the JWT's 15-minute life, so "access cookie missing, refresh cookie present" _is_ the expiry signal. `proxy.ts` catches that on any request, refreshes server-side, rewrites the request's own cookie header so the in-flight request succeeds, and sets fresh cookies on the response.
 - **The client bundle contains no secrets and no API URL** — the only server-side config the web app needs is `API_URL`.
 
 ### Money safety
@@ -114,3 +114,13 @@ Deliberate, deferred rather than overlooked:
 - [ ] **Phase 3** — AI features over pgvector (OpenAI, provider-agnostic wrapper)
 - [ ] **Phase 4** — Angular admin surface
 - [ ] **Phase 5** — Flutter mobile app
+
+## Demo credentials
+
+| Email                 | Password     | Role     |
+| --------------------- | ------------ | -------- |
+| `admin@neobank.test`  | `Demo@12345` | ADMIN    |
+| `steven@neobank.test` | `Demo@12345` | CUSTOMER |
+| `priya@neobank.test`  | `Demo@12345` | CUSTOMER |
+
+Seed with `pnpm db:seed` · reset everything with `pnpm db:reset` · check ledger integrity with `pnpm db:verify`.
