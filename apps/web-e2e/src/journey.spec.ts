@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test('register, open an account, deposit, tansfer and see history', async ({ page }) => {
-  const email = `e2e-${Date.now()}@neobank.test`;
+  const email = `e2e-${Date.now()}@e2e.neobank.test`;
   const password = 'Secret123!';
 
   // 1. register -> redirected to /login
@@ -67,8 +67,8 @@ test('register, open an account, deposit, tansfer and see history', async ({ pag
 
   await page.getByRole('button', { name: 'Transfer' }).click();
   const transferDialog = page.getByRole('dialog');
-  await transferDialog.getByLabel('Select Account').selectOption(savingsId);
-  await transferDialog.getByLabel('Recipient Account').fill(currentAccountId);
+  await transferDialog.getByLabel('From Account').selectOption(savingsId);
+  await transferDialog.getByLabel('To account').selectOption(currentAccountId);
   await transferDialog.getByLabel('Transfer Amount').fill('250');
   await transferDialog.getByLabel('Description').fill('Test Transfer');
   await transferDialog.getByRole('button', { name: 'Transfer' }).click();

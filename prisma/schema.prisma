@@ -65,7 +65,7 @@ model Transaction {
   description String?
   createdAt   DateTime        @default(now())
 
-  @@index([accountId])
+  @@index([accountId, createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model Payee {
@@ -77,5 +77,7 @@ model Payee {
   ifsc          String
   createdAt     DateTime @default(now())
 
-  @@index([userId])
+  @@unique([userId, accountNumber])
 }
+
+

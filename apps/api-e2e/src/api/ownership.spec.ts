@@ -3,7 +3,7 @@ import axios from 'axios';
 const ok = { validateStatus: () => true };
 
 async function makeUser(prefix: string) {
-  const email = `${prefix}-${Date.now()}@neobank.test`;
+  const email = `${prefix}-${Date.now()}@e2e.neobank.test`;
   await axios.post('/api/auth/register', {
     email,
     "password": "Secret456!",
@@ -46,7 +46,7 @@ describe('Ownership', () => {
     expect(accountA.data.balancePaise).toBe('100000');
   });
 
-  it('B cannot transfer from A\'s account (400), and A\'s money never moves', async () => {
+  it('B cannot transfer from A\'s account (404), and A\'s money never moves', async () => {
     // POST transfer { from: accountA, to: accountB } as B -> expect 400
     const res = await axios.post('/api/accounts/transfer', {
       fromAccountId: accountA_ID,
@@ -55,7 +55,7 @@ describe('Ownership', () => {
       description: 'ok'
     }, { ...ok, ...authB });
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
 
     // as A: accountA balance still '100000'
     // as B: accountB balance still '0'

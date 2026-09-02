@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from "@nestjs/common";
 import { AccountsService } from "./accounts.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { RolesGuard } from "../auth/roles.guard";
@@ -8,6 +8,7 @@ import { TransferDto } from "./dto/transfer.dto";
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtPayload } from "../auth/jwt-payload.interface";
+import { ListTransactionsQueryDto } from "./dto/list-transactions.dto";
 
 @ApiTags('accounts')
 @ApiBearerAuth()
@@ -33,7 +34,13 @@ export class AccountsController {
 
   @Post('transfer')
   transfer(@Body() body: TransferDto, @CurrentUser() user: JwtPayload) {
-    return this.accounts.transfer(user.sub, body.fromAccountId, body.toAccountId, BigInt(body.amountPaise), body.description);
+    return this.accounts.transfer(user.sub, {
+      fromAccountId: body.fromAccountId,
+      toAccountId: body.toAccountId,
+      payeeId: body.payeeId,
+      amountPaise: BigInt(body.amountPaise),
+      description: body.description
+    });
   }
 
   @Get()
@@ -42,8 +49,12 @@ export class AccountsController {
   }
 
   @Get(':id/transactions')
-  listTransactions(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
-    return this.accounts.listTransactions(id, user.sub);
+  listTransactions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: JwtPayload,
+    @Query() query: ListTransactionsQueryDto
+  ) {
+    return this.accounts.listTransactions(id, user.sub, query);
   }
 
 }

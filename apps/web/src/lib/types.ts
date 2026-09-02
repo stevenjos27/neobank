@@ -10,8 +10,26 @@ export type Account = {
 export type Transaction = {
   id: string;
   accountId: string;
-  type: 'DEPOSIT' | 'TRANSFER_IN' | 'TRANSFER_OUT';
+  type: 'DEPOSIT' | 'WITHDRAWAL' | 'TRANSFER_IN' | 'TRANSFER_OUT';
   amountPaise: string;
   description: string | null;
   createdAt: string;
+};
+
+export type TransactionPage = {
+  items: Transaction[];
+  nextCursor: string | null;
+};
+
+export type Payee = {
+  id: string;
+  name: string;
+  accountNumber: string;
+  ifsc: string;
+  createdAt: string;
+};
+
+export type PayeeVerification = {
+  accountNumber: string;
+  beneficiaryName: string;
 };
