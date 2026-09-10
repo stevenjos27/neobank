@@ -9,6 +9,7 @@ import { validateEnv } from './config/env.validation';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { PayeesModule } from './payees/payees.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { PayeesModule } from './payees/payees.module';
     AuthModule,
     PayeesModule,
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 100 }]),
+    AiModule
   ],
   controllers: [AppController],
   providers: [
