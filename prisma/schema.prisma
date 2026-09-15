@@ -4,8 +4,8 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
   moduleFormat = "cjs"
 }
 
@@ -57,15 +57,67 @@ model Account {
 }
 
 model Transaction {
-  id          String          @id @default(uuid())
-  account     Account         @relation(fields: [accountId], references: [id])
+  id          String                 @id @default(uuid())
+  account     Account                @relation(fields: [accountId], references: [id])
   accountId   String
   type        TransactionType
   amountPaise BigInt
   description String?
-  createdAt   DateTime        @default(now())
+  createdAt   DateTime               @default(now())
+  enrichment  TransactionEnrichment?
 
   @@index([accountId, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+/// AI-derived data about a transaction. Deliberately NOT on the ledger row:
+/// a model's guess that "SWIGGY*ORDER 8837" is Food & Dining is derived,
+/// re-computable and disposable; the money is none of those things.
+///
+/// TWO independent AI passes write to this row — the embedder and the
+/// categoriser — and they use DIFFERENT models. They therefore need separate
+/// version columns. A single shared `modelVersion` would mean each pass sees
+/// the other's model name and concludes its own work is stale, so every run
+/// would redo all of it, forever, at full cost.
+model TransactionEnrichment {
+  id            String      @id @default(uuid())
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  transactionId String      @unique
+
+  /// Set by the categoriser. Null means "not categorised", which is NOT the
+  /// same as the category `Other` — that is a real verdict of "none of the
+  /// listed categories fit".
+  category             String?
+  confidence           Float?
+  /// The CHAT model that produced `category`. Null until categorised.
+  categoryModelVersion String?
+
+  /// The EMBEDDING model that produced `embedding`. Null until embedded.
+  /// Nullable because either pass may create this row first, so a row can
+  /// legitimately exist with a category and no vector, or the reverse.
+  embeddingModelVersion String?
+  embedding             Unsupported("vector(1536)")?
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+}
+
+/// A chunk of a knowledge-base document. Global — no userId, by design.
+model KnowledgeChunk {
+  source       String
+  heading      String
+  content      String
+  chunkIndex   Int
+  /// Hash of `content`. The backfill skips chunks whose text hasn't changed,
+  /// so re-running after editing one FAQ section re-embeds one section.
+  contentHash  String
+  /// Stays `modelVersion` here, unqualified, because this table has exactly
+  /// one model: chunks are embedded and never categorised. The name is only
+  /// ambiguous where two models write to the same row.
+  modelVersion String
+  embedding    Unsupported("vector(1536)")?
+  id           String                       @id @default(uuid())
+  createdAt    DateTime                     @default(now())
+
+  @@unique([source, chunkIndex])
 }
 
 model Payee {
@@ -79,5 +131,3 @@ model Payee {
 
   @@unique([userId, accountNumber])
 }
-
-
