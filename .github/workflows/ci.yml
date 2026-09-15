@@ -28,6 +28,7 @@ jobs:
       JWT_REFRESH_SECRET: ci-only-refresh-secret
       WEB_ORIGINS: http://localhost:4200
       API_URL: http://localhost:3000/api
+      AI_PROVIDER: mock
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,8 +45,8 @@ jobs:
       - run: pnpm prisma migrate deploy
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm nx e2e api-e2e
-      - name: Lint, test, and build
-        run: pnpm exec nx run-many -t lint test build
+      - name: Lint, typecheck, test, and build
+        run: pnpm exec nx run-many -t lint typecheck test build
       - name: Start API
         run: |
           pnpm nx serve api &
