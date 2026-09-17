@@ -22,7 +22,7 @@ class StubProvider implements LlmProvider {
 
   readonly prompts: string[] = [];
 
-  constructor(private readonly replies: Array<string | Error>) {}
+  constructor(private readonly replies: Array<string | Error>) { }
 
   async chat(request: ChatRequest): Promise<ChatResult> {
     const user = [...request.messages].reverse().find((m) => m.role === 'user');
@@ -33,6 +33,8 @@ class StubProvider implements LlmProvider {
 
     return {
       text: reply ?? '[]',
+      toolCalls: [],
+      finishReason: 'stop',
       model: this.chatModel,
       usage: { inputTokens: 10, outputTokens: 5 },
     };
