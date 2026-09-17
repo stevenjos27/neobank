@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { formatPaise } from '@/lib/money';
+import { formatPaise } from '@neobank/utils';
 import { apiFetch } from '@/lib/server/api';
 import { Account } from '@/lib/types';
 import Link from 'next/link';

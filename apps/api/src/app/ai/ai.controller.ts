@@ -1,4 +1,13 @@
-import { Controller, Get, HttpCode, InternalServerErrorException, Post, ServiceUnavailableException, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  InternalServerErrorException,
+  Post,
+  ServiceUnavailableException,
+  UseGuards
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { RolesGuard } from "../auth/roles.guard";
@@ -7,6 +16,12 @@ import { Roles } from "../auth/roles.decorator";
 import { IngestionService } from "./ingestion.service";
 import { Throttle } from "@nestjs/throttler";
 import { LlmError } from "./llm-provider.interface";
+import { RetrievalService } from "./retrieval.service";
+import { SearchKnowledgeDto } from "./dto/search-knowledge.dto";
+import { AggregatesService } from "./aggregates.service";
+import { CurrentUser } from "../auth/current-user.decorator";
+import { JwtPayload } from "../auth/jwt-payload.interface";
+import { SpendByCategoryDto } from "./dto/spend-by-category.dto";
 
 @ApiTags('ai')
 @ApiBearerAuth()
@@ -15,7 +30,9 @@ import { LlmError } from "./llm-provider.interface";
 export class AiController {
   constructor(
     private readonly ai: AiService,
-    private readonly ingestion: IngestionService
+    private readonly ingestion: IngestionService,
+    private readonly retrieval: RetrievalService,
+    private readonly aggregates: AggregatesService
   ) { }
 
   /**
@@ -59,8 +76,80 @@ export class AiController {
     try {
       return await this.ingestion.ingestAll();
     } catch (error) {
-      throw this.toHttp(error);
+      throw this.toHttp(error, 'Ingestion');
     }
+  }
+
+  /**
+ * Inspect what retrieval returns for a query, with distances.
+ *
+ * ADMIN-only, and it stays that way. The customer-facing surface is the
+ * chat endpoint in Step 4 — not raw search — so exposing this publicly
+ * would create an API we'd have to support forever for no user benefit.
+ * As an admin diagnostic it keeps earning its place: "why did the
+ * assistant say that?" is answerable by replaying the question here and
+ * reading the distances.
+ *
+ * Its immediate job is calibration. `DEFAULT_MAX_DISTANCE` in
+ * RetrievalService is currently a guess, and passing `maxDistance: 2`
+ * here returns everything so the real distribution can be measured.
+ *
+ * NOTE FOR WHOEVER ADDS TRANSACTION SEARCH: do not add it to this route.
+ * KnowledgeChunk is global by design, which is the only reason this
+ * endpoint needs no userId scoping. Transaction vectors are per-customer
+ * and must be scoped to the caller's own accounts. Extending an
+ * unscoped route with scoped data is how that scoping gets forgotten.
+ */
+  @Post('search')
+  @Roles('ADMIN')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  async search(@Body() body: SearchKnowledgeDto) {
+    try {
+      return await this.retrieval.searchKnowledge(body.q, {
+        limit: body.limit,
+        maxDistance: body.maxDistance,
+      });
+    } catch (error) {
+      throw this.toHttp(error, 'Knowledge search');
+    }
+  }
+
+  /**
+ * Spending by category for the AUTHENTICATED CALLER.
+ *
+ * Note what is absent: `@Roles('ADMIN')` and any user identifier in the
+ * DTO. Both absences are the design.
+ *
+ * Not ADMIN, unlike /ai/search — and the contrast is the rule. Search hits
+ * a GLOBAL corpus and bills a third party on every call, so it is gated on
+ * cost. This is free SQL over the caller's own rows, so it is an ordinary
+ * customer endpoint. Gating it on ADMIN would also make the scoping
+ * property untestable: an administrator's own data is just another user's
+ * data, and "it returned something" would prove nothing.
+ *
+ * No user id in the body. `user.sub` comes from the verified JWT, so the
+ * question "whose money?" is answered by the token and is unaskable by the
+ * caller. When this same service is driven by tool-calling in the next
+ * step, the model fills `period` and nothing else — the identity argument
+ * simply does not exist for it to hallucinate.
+ *
+ * No @Throttle either. In this codebase a throttle marks SPEND, not load:
+ * ingest is 2/min and search 20/min because each call bills OpenAI. This
+ * one bills nobody, so it inherits the global 100/min and adding a tighter
+ * limit would be a control protecting nothing.
+ *
+ * No try/catch, for the same species of reason: there is no provider call
+ * here, so no LlmError is reachable, and wrapping it in a handler that maps
+ * nothing would just be noise for the next reader to decode.
+ */
+  @Post('aggregates/spend')
+  @HttpCode(200)
+  async spendByCategory(
+    @Body() body: SpendByCategoryDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.aggregates.spendByCategory(user.sub, body.period);
   }
 
   /**
@@ -79,15 +168,15 @@ export class AiController {
    * One route justifies a private helper; a second one would justify an
    * exception filter instead.
    */
-  private toHttp(error: unknown): Error {
+  private toHttp(error: unknown, operation: string): Error {
     if (!(error instanceof LlmError)) {
-      return new InternalServerErrorException('Ingestion failed');
+      return new InternalServerErrorException(`${operation} failed`);
     }
 
     switch (error.kind) {
       case 'spend_limit':
         return new ServiceUnavailableException(
-          'AI provider spend limit reached. Ingestion cannot proceed until it is raised.',
+          `AI provider spend limit reached. ${operation} cannot proceed until it is raised.`,
         );
       case 'auth':
         // A rejected key is OUR misconfiguration, not the caller's fault, so
@@ -95,7 +184,7 @@ export class AiController {
         // session had expired and send them to re-login for no reason.
         return new InternalServerErrorException('AI provider rejected our credentials');
       default:
-        return new InternalServerErrorException(`Ingestion failed: ${error.kind}`);
+        return new InternalServerErrorException(`${operation} failed: ${error.kind}`);
     }
   }
 }

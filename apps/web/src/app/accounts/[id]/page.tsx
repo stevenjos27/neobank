@@ -1,4 +1,4 @@
-import { formatPaise } from '@/lib/money';
+import { formatPaise } from '@neobank/utils';
 import { apiFetch } from '@/lib/server/api';
 import { Account, TransactionPage } from '@/lib/types';
 import Link from 'next/link';

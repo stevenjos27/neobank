@@ -5,6 +5,7 @@ import {
   ChatResult,
   EmbedResult,
   LlmProvider,
+  ToolDefinition
 } from './llm-provider.interface';
 
 /**
@@ -55,15 +56,65 @@ export class MockLlmProvider implements LlmProvider {
 
   async chat(request: ChatRequest): Promise<ChatResult> {
     const lastUser = [...request.messages].reverse().find((m) => m.role === 'user');
-    const text = this.respondTo(lastUser?.content ?? '');
+    const prompt = lastUser?.content ?? '';
+
+    // ── tool selection ───────────────────────────────────────────────────
+    //
+    // Chosen BY HASH, not by reading the question. That is the point, and it
+    // is worth being explicit about because a keyword router would be easy
+    // and would quietly destroy this file's honesty: the mock would start to
+    // look as though it understood intent, and Step 5's plumbing evals could
+    // then be mistaken for routing-quality evals.
+    //
+    // Deterministic and meaningless is exactly the contract. It gives CI what
+    // it actually needs — both tool paths exercised, arguments well formed,
+    // byte-identical across runs — while proving nothing whatsoever about
+    // whether the routing is sensible. That question costs money and belongs
+    // in the answer-quality suite.
+    if (request.tools?.length) {
+      const tool = request.tools[this.hashInt(prompt) % request.tools.length];
+
+      return {
+        text: '',
+        toolCalls: [
+          {
+            id: `mock-call-${this.hashInt(prompt).toString(16)}`,
+            name: tool.name,
+            argumentsJson: JSON.stringify(this.synthesiseArguments(tool, prompt)),
+          },
+        ],
+        finishReason: 'tool_calls',
+        model: this.chatModel,
+        usage: { inputTokens: 0, outputTokens: 0 },
+      };
+    }
+
+    const text = this.respondTo(prompt);
 
     return {
-      text,
+      // If JSON was requested, the reply must BE JSON. `respondTo` already
+      // returns JSON for the categorisation shape it recognises; for anything
+      // else it returns prose, which would violate the contract the caller
+      // just asked for. Checked by parsing rather than by string-sniffing, and
+      // handled here rather than inside `respondTo` so the categorisation
+      // branch that the contract test covers stays untouched.
+      text: request.responseFormat === 'json' && !this.isJson(text)
+        ? JSON.stringify({ note: 'mock response', model: this.chatModel })
+        : text,
+      toolCalls: [],
+      finishReason: 'stop',
       model: this.chatModel,
-      // Plausible, deterministic, and clearly fake. Cost reporting under the
-      // mock should never be mistaken for a real bill.
       usage: { inputTokens: 0, outputTokens: 0 },
     };
+  }
+
+  private isJson(value: string): boolean {
+    try {
+      JSON.parse(value);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async embed(texts: string[]): Promise<EmbedResult> {
@@ -134,6 +185,75 @@ export class MockLlmProvider implements LlmProvider {
   private pseudoCategory(seed: string): string {
     const options = ['Food & Dining', 'Transport', 'Shopping', 'Transfers', 'Income'];
     return options[this.hashInt(seed) % options.length];
+  }
+
+  /**
+ * Build arguments FROM THE TOOL'S OWN SCHEMA, never from knowledge of what
+ * the tool is called.
+ *
+ * The alternative — `if (tool.name === 'spendByCategory') return { period:
+ * 'last_month' }` — is the same anti-pattern this file already refuses for
+ * categories. A double that hardcodes what the code under test expects can
+ * never disagree with it, so the validation it is supposed to exercise goes
+ * permanently dead. Generating generically keeps the mock a second opinion:
+ * a schema the registry's validator cannot actually accept shows up as a
+ * rejected mock call in CI, which is precisely what should happen.
+ *
+ * Happy path only. Malformed arguments are `StubProvider`'s job — the same
+ * division of labour as `categoriser.service.spec.ts`, where the mock
+ * behaves and the stub misbehaves on demand.
+ */
+  private synthesiseArguments(tool: ToolDefinition, seed: string): Record<string, unknown> {
+    const schema = tool.parameters as {
+      properties?: Record<string, { type?: string; enum?: unknown[] }>;
+      required?: string[];
+    };
+
+    const properties = schema.properties ?? {};
+    // No `required` list means every property is fair game — more coverage,
+    // and a schema that forgot to declare `required` is worth surfacing.
+    const required = schema.required ?? Object.keys(properties);
+
+    const args: Record<string, unknown> = {};
+
+    for (const name of required) {
+      const property = properties[name];
+      if (!property) continue;
+
+      // Enums are picked by hash of seed AND property name, so one question
+      // does not send every enum argument to the same index — that would
+      // leave most of `resolvePeriod` unexercised across a whole eval suite.
+      if (Array.isArray(property.enum) && property.enum.length > 0) {
+        args[name] = property.enum[this.hashInt(`${seed}:${name}`) % property.enum.length];
+        continue;
+      }
+
+      switch (property.type) {
+        case 'string':
+          // The question itself, which is genuinely the right value for a
+          // search query and harmless anywhere else.
+          args[name] = seed.slice(0, 120);
+          break;
+        case 'integer':
+        case 'number':
+          args[name] = 3;
+          break;
+        case 'boolean':
+          args[name] = true;
+          break;
+        default:
+          // Loud, like the chunker on an oversized section. Silently emitting
+          // null would fail the registry's validation with an error pointing
+          // at the model instead of at this file.
+          throw new Error(
+            `MockLlmProvider cannot synthesise an argument of type ` +
+            `"${property.type}" for "${tool.name}.${name}". Add it to ` +
+            `synthesiseArguments in mock.provider.ts.`,
+          );
+      }
+    }
+
+    return args;
   }
 
   // ──────────────────────────────────────────────────────────── embeddings
