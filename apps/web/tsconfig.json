@@ -22,7 +22,10 @@
       }
     ],
     "types": ["jest", "node"],
-    "paths": { "@/*": ["./src/*"] }
+    "paths": {
+      "@/*": ["./src/*"],
+      "@neobank/utils": ["../../libs/utils/src/index.ts"]
+    }
   },
   "include": [
     "**/*.ts",

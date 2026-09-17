@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { formatPaise } from '@/lib/money';
+import { formatPaise } from '@neobank/utils';
 import { Transaction, TransactionPage } from '@/lib/types';
 
 const PAGE_SIZE = 50;

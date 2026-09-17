@@ -6,7 +6,7 @@ import { Input } from './ui/input';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from './ui/button';
-import { formatPaise } from '@/lib/money';
+import { formatPaise } from '@neobank/utils';
 import AddPayeeForm from './add-payee-form';
 
 type Mode = 'own' | 'payee';

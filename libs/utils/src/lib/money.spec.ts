@@ -24,4 +24,20 @@ describe('formatPaise', () => {
   it('accepts bigint input', () => {
     expect(formatPaise(500000n)).toBe('₹5,000.00');
   });
+
+  it('formats a negative amount with the sign before the symbol', () => {
+    expect(formatPaise(-12345n)).toBe('-₹123.45');
+  });
+
+  it('keeps the sign for a negative amount smaller than one rupee', () => {
+    // The case this file exists for, and the one a plausible fix still gets
+    // wrong. All of the sign information lives in a value Intl never sees:
+    // -45 paise has 0 whole rupees, so formatting the signed rupee count
+    // gives "₹0" and a debit renders as a credit.
+    expect(formatPaise(-45n)).toBe('-₹0.45');
+  });
+
+  it('parses a negative amount given as a string', () => {
+    expect(formatPaise('-500000')).toBe('-₹5,000.00');
+  });
 });
