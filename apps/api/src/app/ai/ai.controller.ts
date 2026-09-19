@@ -22,6 +22,8 @@ import { AggregatesService } from "./aggregates.service";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtPayload } from "../auth/jwt-payload.interface";
 import { SpendByCategoryDto } from "./dto/spend-by-category.dto";
+import { AnsweringService } from "./answering.service";
+import { AskDto } from "./dto/ask.dto";
 
 @ApiTags('ai')
 @ApiBearerAuth()
@@ -32,7 +34,8 @@ export class AiController {
     private readonly ai: AiService,
     private readonly ingestion: IngestionService,
     private readonly retrieval: RetrievalService,
-    private readonly aggregates: AggregatesService
+    private readonly aggregates: AggregatesService,
+    private readonly answering: AnsweringService
   ) { }
 
   /**
@@ -150,6 +153,66 @@ export class AiController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.aggregates.spendByCategory(user.sub, body.period);
+  }
+
+  /**
+ * Ask the assistant a question.
+ *
+ * Customer-facing and scoped to the caller, for the same reason as the
+ * spend route: gating it on ADMIN would make the scoping property
+ * untestable, since an administrator's own data is just another user's.
+ *
+ * Throttled at 10/min because this is the most expensive endpoint per call
+ * after ingest — two or three chat completions, each carrying the system
+ * prompt, the tool schemas and up to five retrieved chunks. Roughly
+ * ₹0.12 / $0.0014 a question, so 10/min is a ceiling on a runaway client
+ * rather than a limit anyone will notice. Consistent with the rest of the
+ * codebase: a throttle here marks spend, not load.
+ */
+  @Post('ask')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async ask(@Body() body: AskDto, @CurrentUser() user: JwtPayload) {
+    try {
+      const result = await this.answering.answer(body.question, { userId: user.sub });
+
+      // THIS MAPPING IS THE SECOND HALF OF THE GUARDRAIL, not tidiness.
+      //
+      // `result.withheldAnswer` holds the text containing the figure we just
+      // decided not to show. Returning the service's result object wholesale
+      // — the obvious thing to write — would hand the customer the exact
+      // amount the suppression existed to withhold, and the response would
+      // still *look* correct because `answer` carries the refusal.
+      //
+      // `result.sources` is withheld for a second, separate reason: it is
+      // every passage RETRIEVED, which overstates. The first real run fetched
+      // three and used one, so publishing it would have credited two passages
+      // the answer never touched. A reader who follows a citation and finds
+      // nothing relevant stops trusting the ones that were real, which makes
+      // an over-broad list worse than no list. `citedSources` is the subset
+      // the answer actually names.
+      //
+      // The wire field stays `sources` even though it is fed by
+      // `citedSources`. "Cited" is a contrast with an internal superset the
+      // client never sees, and an external name should not carry a
+      // distinction its consumer cannot observe — from out here, these simply
+      // are the sources. The mismatch is deliberate and lives only here.
+      //
+      // Everything else stripped is internal: tool arguments, token usage,
+      // the prompt version, the model name, and each hit's cosine distance.
+      // Step 5's evals drive AnsweringService directly, so nothing needs this
+      // route to leak diagnostics to get at them.
+      return {
+        answer: result.answer,
+        sources: result.citedSources.map(({ source, heading, chunkIndex }) => ({
+          source,
+          heading,
+          chunkIndex,
+        })),
+      };
+    } catch (error) {
+      throw this.toHttp(error, 'Answering');
+    }
   }
 
   /**

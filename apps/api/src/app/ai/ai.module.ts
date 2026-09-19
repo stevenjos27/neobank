@@ -9,6 +9,7 @@ import { IngestionService } from "./ingestion.service";
 import { RetrievalService } from "./retrieval.service";
 import { AggregatesService } from "./aggregates.service";
 import { ToolRegistryService } from "./tool-registry.service";
+import { AnsweringService } from "./answering.service";
 
 const llmProviderRegistration = {
   provide: LLM_PROVIDER_TOKEN,
@@ -72,7 +73,8 @@ const llmProviderRegistration = {
     IngestionService,
     RetrievalService,
     AggregatesService,
-    ToolRegistryService
+    ToolRegistryService,
+    AnsweringService
   ],
   // IngestionService is exported because Step 2's admin route and Step 5's
   // eval harness both drive it from outside this module. PrismaModule is
