@@ -89,11 +89,14 @@ CI runs all four against a Postgres service container on every push.
 
 ```
 apps/
-  api/        NestJS — auth, accounts, transfers, transactions
+  api/        NestJS — auth, accounts, payees, transfers, transactions, AI
   api-e2e/    HTTP-level tests against a real server + database
   web/        Next.js — BFF route handlers, dashboard, auth pages
   web-e2e/    Playwright user-journey test
-prisma/       schema and migrations
+libs/
+  utils/      shared code used by both api and web (money formatting)
+knowledge/    the FAQ corpus the assistant retrieves from
+prisma/       schema, migrations, seed
 ```
 
 ## Known gaps
@@ -102,18 +105,19 @@ Deliberate, deferred rather than overlooked:
 
 - Refresh tokens are stateless — no server-side revocation or logout-everywhere.
 - Account numbers are generated randomly with no collision retry.
-- Transfers require the recipient's account **ID**; a real bank would look up by account number + IFSC.
-- No rate limiting or `helmet`.
-- The `Payee` model (with IFSC) exists in the schema but has no endpoints yet.
+- No `helmet` — the API sets no security headers.
 - Admins reuse the customer dashboard, which shows every account — the admin surface gets its own UI in a later phase.
+- TypeScript runs with `strict: false`, inherited from the Nx preset. Discriminated-union narrowing doesn't work, so each use site needs an `in` check instead of a boolean discriminant.
+- AI answers are checked, not proven. Retrieval is a pre-filter; grounding rests on a prompt instruction plus a runtime check that every monetary figure in an answer appears verbatim in a tool result. A non-empty retrieval is not permission to answer.
+- Seed data is generated against a rolling window anchored on the current date, so re-seeding changes historical figures. This blocks a deterministic eval harness and is the next thing to fix in Phase 3.
 
 ## Roadmap
 
 - [x] **Phase 1** — NestJS API, Prisma, auth, money-safe transfers, deployed
 - [x] **Phase 2** — Next.js customer web app, BFF auth, dashboard, transfers, history
-- [ ] **Phase 3** — AI features over pgvector (OpenAI, provider-agnostic wrapper)
-- [ ] **Phase 4** — Angular admin surface
-- [ ] **Phase 5** — Flutter mobile app
+- [ ] **Phase 3** — AI over pgvector: hybrid RAG, tool-calling assistant, streaming chat UI
+- [ ] **Phase 4** — React Native (Expo) mobile app
+- [ ] **Phase 5** — Angular admin portal
 
 ## Demo credentials
 
