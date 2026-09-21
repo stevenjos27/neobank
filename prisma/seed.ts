@@ -92,7 +92,32 @@ type PlannedTxn = {
 };
 
 // ---------- date helpers: window slides with the calendar ----------
-const now = new Date();
+/**
+ * The instant the entire dataset is generated relative to.
+ *
+ * Defaults to the real "now", because a permanently fixed anchor makes
+ * `last_month` empty within weeks and a live demo is what this data is for.
+ * `SEED_ANCHOR_DATE` pins it for the eval harness, which needs two runs to
+ * differ only in what the eval changed — a prompt comparison against a
+ * dataset that moved underneath has two variables and measures neither.
+ *
+ * Pass a FULL ISO instant with `Z`. A bare `2026-09-01` parses as UTC
+ * midnight, but `2026-09-01T00:00:00` (no zone) parses as LOCAL time, so the
+ * same string produces different data in different timezones — which is the
+ * exact class of bug this variable exists to remove.
+ */
+const ANCHOR_ENV = process.env.SEED_ANCHOR_DATE;
+const now = ANCHOR_ENV ? new Date(ANCHOR_ENV) : new Date();
+
+// An unparseable date yields Invalid Date, and EVERY comparison against it is
+// false — including `d > now` in the clamp below. A typo would therefore not
+// throw; it would silently disable the future-date guard and fill the ledger
+// with transactions dated next year. NaN checks on dates are not paranoia.
+if (Number.isNaN(now.getTime())) {
+  throw new Error(
+    `SEED_ANCHOR_DATE is not a valid date: "${ANCHOR_ENV}" — expected a full ISO instant such as 2026-09-01T00:00:00Z`,
+  );
+}
 const monthStart = (monthsAgo: number) =>
   new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - monthsAgo, 1, 0, 0, 0));
 
@@ -104,8 +129,20 @@ function dayIn(monthsAgo: number, day: number, hour = 10): Date {
   const d = new Date(
     Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), Math.min(day, daysInMonth), hour, randInt(0, 59)),
   );
+  // Drawn UNCONDITIONALLY, even when it goes unused.
+  //
+  // A draw inside the branch couples the PRNG stream to the DATA: the number
+  // of future-dated days changes every time the anchor moves, so the number
+  // of extra draws changes, so every subsequent amount, merchant and coin
+  // flip shifts. That is what turned 238 transactions into 249 into 252 for
+  // byte-identical code — not the window sliding, the stream desynchronising.
+  //
+  // Cost: one wasted rng() per call. Benefit: the stream position depends
+  // only on HOW MANY TIMES this function is called, never on what it decides.
+  const clampHours = randInt(1, 72);
+
   // never emit a future-dated transaction in the current month
-  return d > now ? new Date(now.getTime() - randInt(1, 72) * 3600_000) : d;
+  return d > now ? new Date(now.getTime() - clampHours * 3600_000) : d;
 }
 
 // ---------- generation ----------
@@ -336,7 +373,23 @@ async function main() {
 
   // ---- ground truth for the eval harness ----
   const facts = {
-    generatedAt: now.toISOString(),
+    // `generatedAt` and `anchor` are different facts and were conflated. When
+    // the anchor is pinned they disagree, and it is the anchor that determines
+    // the data — the same invariant as ChatResult.model and the search
+    // result's threshold: a derived value travels with the inputs that
+    // derived it.
+    generatedAt: new Date().toISOString(),
+    anchor: now.toISOString(),
+    anchorPinned: ANCHOR_ENV !== undefined,
+    // Host only. NEVER the connection string — it carries the password, and
+    // this file has been shared before.
+    database: (() => {
+      try {
+        return new URL(process.env.DATABASE_URL ?? '').host;
+      } catch {
+        return 'unknown';
+      }
+    })(),
     monthsOfHistory: MONTHS_OF_HISTORY,
     demoPassword: DEMO_PASSWORD,
     accounts: accounts.map((a) => {
