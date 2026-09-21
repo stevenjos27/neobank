@@ -1,0 +1,12 @@
+// Typechecks the scripts under prisma/ — seed, verify, clean — which belong to
+// no Nx project, so no `typecheck`, `lint` or `test` target has ever read them.
+// `tsx` strips types without checking them. Before this file existed, a type
+// error in the seed that builds the eval ground truth could not fail anything.
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["prisma/**/*.ts", "prisma.config.ts"]
+}
