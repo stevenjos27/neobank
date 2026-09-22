@@ -145,6 +145,37 @@ function dayIn(monthsAgo: number, day: number, hour = 10): Date {
   return d > now ? new Date(now.getTime() - clampHours * 3600_000) : d;
 }
 
+// ---------- IST calendar, for the ground-truth file ----------
+//
+// A SECOND implementation of the rule apps/api/src/app/ai/period.ts
+// implements, deliberately not imported from it. Ground truth that shares code
+// with the system under test is wrong in lockstep with it: a bug in period.ts
+// would move the expected and the actual figure together, and the test would
+// pass. Written from the specification — NeoBank's calendar is IST civil
+// dates, UTC+05:30, no DST — not from the code.
+const IST_OFFSET_MS = (5 * 60 + 30) * 60_000;
+
+/** The IST civil date an instant falls on. */
+function istDate(instant: Date): { year: number; month: number; day: number } {
+  const shifted = new Date(instant.getTime() + IST_OFFSET_MS);
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth(),
+    day: shifted.getUTCDate(),
+  };
+}
+
+/** The instant an IST civil day begins. Out-of-range month or day normalise, as in Date.UTC. */
+function istMidnight(year: number, month: number, day: number): Date {
+  return new Date(Date.UTC(year, month, day) - IST_OFFSET_MS);
+}
+
+/** `YYYY-MM` of the IST civil month an instant falls in. */
+function istMonthKey(instant: Date): string {
+  const { year, month } = istDate(instant);
+  return `${year}-${String(month + 1).padStart(2, '0')}`;
+}
+
 // ---------- generation ----------
 function generateForAccount(opts: {
   accountId: string;
@@ -371,6 +402,52 @@ async function main() {
     });
   }
 
+  // ---- per-user spend windows: ground truth for the aggregate tool ----
+  //
+  // For each user and each period, exactly what `spend_by_category` must
+  // report when resolved at the anchor: debits only, summed across all of the
+  // user's accounts, over half-open [from, to) IST windows. The periods are
+  // restated here from their specification, not imported.
+  //
+  // Keyed by email, not id: email is the natural key, and the ids that win in
+  // a database with history are not the logical ids this file plans with.
+  const today = istDate(now);
+  const windows: Record<string, { from: Date | null; to: Date }> = {
+    this_month: { from: istMidnight(today.year, today.month, 1), to: now },
+    last_month: {
+      from: istMidnight(today.year, today.month - 1, 1),
+      to: istMidnight(today.year, today.month, 1),
+    },
+    // Thirty days INCLUDING today: today and the 29 before it.
+    last_30_days: { from: istMidnight(today.year, today.month, today.day - 29), to: now },
+    this_year: { from: istMidnight(today.year, 0, 1), to: now },
+    all_time: { from: null, to: now },
+  };
+
+  const spendByUser = Object.fromEntries(
+    users.map((u) => {
+      const own = new Set(accounts.filter((a) => a.userId === u.id).map((a) => a.id));
+      const debits = accepted.filter((t) => own.has(t.accountId) && !CREDITS.has(t.type));
+      const periods = Object.fromEntries(
+        Object.entries(windows).map(([period, w]) => {
+          const hits = debits.filter(
+            (t) => (w.from === null || t.createdAt >= w.from) && t.createdAt < w.to,
+          );
+          return [
+            period,
+            {
+              from: w.from ? w.from.toISOString() : null,
+              to: w.to.toISOString(),
+              debitsPaise: hits.reduce((sum, t) => sum + t.amountPaise, 0n).toString(),
+              debitCount: hits.length,
+            },
+          ];
+        }),
+      );
+      return [u.email, periods];
+    }),
+  );
+
   // ---- ground truth for the eval harness ----
   const facts = {
     // `generatedAt` and `anchor` are different facts and were conflated. When
@@ -397,7 +474,10 @@ async function main() {
       const byMonth: Record<string, { creditsPaise: string; debitsPaise: string; count: number }> = {};
       const byMerchant: Record<string, { totalPaise: string; count: number }> = {};
       for (const t of mine) {
-        const key = `${t.createdAt.getUTCFullYear()}-${String(t.createdAt.getUTCMonth() + 1).padStart(2, '0')}`;
+        // IST civil month — the system's definition of a month. This was UTC,
+        // which agreed with IST only because no generated transaction falls
+        // between 18:30 and 24:00 UTC on a month's last day.
+        const key = istMonthKey(t.createdAt);
         const bucket = (byMonth[key] ??= { creditsPaise: '0', debitsPaise: '0', count: 0 });
         if (CREDITS.has(t.type)) bucket.creditsPaise = (BigInt(bucket.creditsPaise) + t.amountPaise).toString();
         else bucket.debitsPaise = (BigInt(bucket.debitsPaise) + t.amountPaise).toString();
@@ -417,6 +497,7 @@ async function main() {
         byMonth, byMerchant,
       };
     }),
+    spendByUser,
   };
   writeFileSync(join(__dirname, '.seed-facts.json'), JSON.stringify(facts, null, 2));
 
