@@ -426,7 +426,10 @@ async function main() {
 
   const spendByUser = Object.fromEntries(
     users.map((u) => {
-      const own = new Set(accounts.filter((a) => a.userId === u.id).map((a) => a.id));
+      // Widened to string: `a.id` is a literal-union type (ID is `as const`),
+      // but PlannedTxn.accountId is a plain string, and Set<T>.has only
+      // accepts a T.
+      const own = new Set<string>(accounts.filter((a) => a.userId === u.id).map((a) => a.id));
       const debits = accepted.filter((t) => own.has(t.accountId) && !CREDITS.has(t.type));
       const periods = Object.fromEntries(
         Object.entries(windows).map(([period, w]) => {
