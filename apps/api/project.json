@@ -96,6 +96,13 @@
       "options": {
         "passWithNoTests": true
       }
+    },
+    "ground-truth": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "jest --config apps/api/jest.ground-truth.config.cts"
+      }
     }
   }
 }
