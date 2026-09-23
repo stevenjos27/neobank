@@ -8,7 +8,9 @@
     "db:reset": "prisma migrate reset --force && pnpm db:generate && pnpm db:seed",
     "db:studio": "prisma studio",
     "db:verify": "tsx prisma/verify.ts",
-    "db:clean": "tsx prisma/clean.ts"
+    "db:clean": "tsx prisma/clean.ts",
+    "typecheck:prisma": "tsc -p tsconfig.prisma.json",
+    "db:seed:eval": "SEED_ANCHOR_DATE=2026-09-15T12:00:00Z prisma db seed"
   },
   "private": true,
   "devDependencies": {
