@@ -42,7 +42,21 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - run: pnpm prisma generate
+      # Nothing else typechecks prisma/ — it belongs to no Nx project, and tsx
+      # strips types without checking them. Runs before the database work
+      # because it needs nothing but the generated client.
+      - run: pnpm typecheck:prisma
       - run: pnpm prisma migrate deploy
+      # Seed and check ground truth BEFORE anything else touches the database.
+      # The e2e suites work on their own @e2e.neobank.test users and leave the
+      # seeded accounts alone, but ordering it this way means that stops being
+      # something to rely on. If a future test does write to a seeded account,
+      # this has already run, and reordering these steps produces the
+      # precondition's own message rather than a puzzle.
+      - name: Seed the eval fixture
+        run: pnpm db:seed:eval
+      - name: Tool ground truth
+        run: pnpm nx run api:ground-truth
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm nx e2e api-e2e
       - name: Lint, typecheck, test, and build
