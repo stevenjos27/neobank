@@ -60,6 +60,30 @@ export class OpenAiProvider implements LlmProvider {
 
     this.embeddingDimensions = dimensions;
 
+    /**
+ * Env-configurable, default 30 seconds.
+ *
+ * Production measures ~1.2s per embedding call, so 30s is 25x headroom
+ * there, and a hung request should not hold a connection longer than that.
+ * But a developer machine is not production. On 24 Sep five consecutive
+ * curl calls to the embeddings endpoint from this repo's dev machine
+ * returned 200 in 70.9s, 32.9s, 0.9s and 99.9s, plus one 502 at 55.2s,
+ * with OpenAI reporting no API incident.
+ *
+ * A 30s client timeout on that link aborts precisely the calls that would
+ * have succeeded, retries twice, and surfaces "Connection error" — a
+ * failure caused by our own ceiling rather than by the network. Raise it
+ * locally (AI_REQUEST_TIMEOUT_MS=120000) when the link is bad; leave the
+ * default alone in production, where 30s is the right ceiling.
+ */
+    const timeoutMs = Number(process.env.AI_REQUEST_TIMEOUT_MS ?? 30_000);
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+      throw new Error(
+        `AI_REQUEST_TIMEOUT_MS must be a positive number of milliseconds, got ` +
+        `"${process.env.AI_REQUEST_TIMEOUT_MS}".`,
+      );
+    }
+
     this.client = new OpenAI({
       apiKey,
       // Stated rather than inherited, so the retry and timeout behaviour of
@@ -67,7 +91,7 @@ export class OpenAiProvider implements LlmProvider {
       // spend-limit 429 twice before we ever see it — a small, known waste we
       // can remove later with a custom shouldRetry if it starts to matter.
       maxRetries: 2,
-      timeout: 30_000,
+      timeout: timeoutMs,
     });
   }
 
