@@ -3,32 +3,45 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LLM_PROVIDER_TOKEN, LlmProvider } from './llm-provider.interface';
 
 /**
- * Cosine distance above which a chunk is treated as "not an answer".
+ * MEASURED 24 Sep 2026 (Step 5) against text-embedding-3-small and the
+ * 17-section FAQ, over 34 labelled questions — 22 the corpus answers, 12 it
+ * does not. At this value:
  *
- * CALIBRATED 16 Sep 2026 against text-embedding-3-small and the 17-chunk
- * FAQ, with five paraphrased questions the corpus answers and three it
- * does not:
+ *   recall@1  16/22      recallAny  19/22      false positives  3/12
  *
- *   covered      0.250  0.278  0.451  0.462  0.574   ← worst true positive
- *   ──────────────────────────────────────── 0.62 ───
- *   not covered                      0.665  0.722  0.906  ← best false positive
+ * Chosen by sweeping 0.40–0.80 and maximising recallAny minus false-positive
+ * rate, which peaks at 0.62–0.64 (0.614, against 0.606 at 0.58–0.60 and 0.531
+ * at 0.66). The choice of metric decides the threshold: optimising recall@1
+ * instead picks 0.58 and loses three questions for nothing, because the
+ * generator is shown EVERY passage inside the threshold, not just the nearest.
  *
- * The initial guess was 0.55, which would have SILENTLY DROPPED "is there a
- * charge for using the app?" at 0.574 — a real question answered by the
- * Fees and charges section. A guessed threshold errs toward "I don't know"
- * about documented policy, and that failure appears in no log.
+ * ORIGINALLY CALIBRATED 16 Sep from eight questions, and the guess before that
+ * was 0.55 — which would have SILENTLY DROPPED "is there a charge for using
+ * the app?" at 0.574, a real question answered by Fees and charges. A guessed
+ * threshold errs toward "I don't know" about documented policy, and that
+ * failure appears in no log. The eight-sample number survived the 34-case
+ * sweep unchanged. That is worth knowing, but it is not why it stands: it
+ * stands because it was measured.
  *
- * All five covered questions returned the CORRECT section at rank 1, so
- * ranking and thresholding are separate concerns. This number decides only
- * where to cut.
+ * THIS THRESHOLD CANNOT BE THE GROUNDING GUARD, and that is now measured
+ * rather than argued. The two distributions are interleaved, not merely close:
+ * the nearest false positive ("can I open a joint account with my spouse?" →
+ * Opening an account, 0.5392) is closer than the correct section for EIGHT of
+ * the 22 covered questions. No cutoff separates them. At this operating point
+ * one unanswerable question in four still yields a passage, so a non-empty
+ * result is not permission to answer — the model judging relevance, and
+ * citations being earned rather than assumed, are what stand between a false
+ * positive and a fabrication.
  *
- * Eight samples is a sample, not a distribution. The hard negatives sit
- * 0.045 above the cut, so some off-corpus questions WILL clear it. That is
- * accepted deliberately: Step 4 must have the model judge whether the
- * retrieved text answers the question, because a non-empty result is not
- * permission to answer. This is a pre-filter, not the grounding guard.
- * Step 5's eval harness replaces this with a number backed by measured
- * recall and false-positive counts.
+ * Three covered questions are unreachable at any sane cutoff: 0.7507, 0.7032
+ * (at rank 1) and 0.6709. Those are corpus-vocabulary and retrieval-method
+ * problems — a word appearing verbatim in a section does not put it nearby —
+ * not threshold problems.
+ *
+ * These numbers are enforced as floors by
+ * apps/api/src/app/ai/eval/retrieval.eval.spec.ts, evaluated at whatever this
+ * constant currently is. Moving it fails that suite in one direction or the
+ * other, by design.
  */
 const DEFAULT_MAX_DISTANCE = 0.62;
 
