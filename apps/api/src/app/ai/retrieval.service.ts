@@ -91,32 +91,77 @@ export class RetrievalService {
    * global-by-design query with a must-be-scoped one in the same service is
    * how a scoping bug gets written by someone copying the method above it.
    */
+
+  /**
+ * Clamp, in one place, because both entry points need the same answer.
+ *
+ * A human caller out of range gets a 400 from the DTO; the model gets a
+ * silent clamp here. Reject a human, clamp a model — see the DTO for why.
+ */
+  private resolveOptions(options: SearchOptions): { limit: number; maxDistance: number } {
+    return {
+      limit: Math.min(Math.max(1, Math.trunc(options.limit ?? 5)), MAX_LIMIT),
+      maxDistance: options.maxDistance ?? DEFAULT_MAX_DISTANCE,
+    };
+  }
+
+  /**
+   * Semantic search over the knowledge base.
+   *
+   * KnowledgeChunk is global — no userId, by design, because bank policy is
+   * the same for everyone.
+   */
   async searchKnowledge(
     query: string,
     options: SearchOptions = {},
   ): Promise<KnowledgeSearchResult> {
-    const limit = Math.min(Math.max(1, Math.trunc(options.limit ?? 5)), MAX_LIMIT);
-    const maxDistance = options.maxDistance ?? DEFAULT_MAX_DISTANCE;
-
     const trimmed = query.trim();
-    const empty: KnowledgeSearchResult = {
-      query: trimmed,
-      embeddingModel: this.llm.embeddingModel,
-      limit,
-      maxDistance,
-      hits: [],
-    };
+
     // Return early WITHOUT embedding. A blank query would otherwise cost a
     // paid API call to produce a vector for nothing, and the DTO's Length(1)
-    // only guards the HTTP path — the model-driven caller arriving in the
-    // next file has no such validation.
-    if (trimmed.length === 0) return empty;
+    // only guards the HTTP path — the model-driven caller has no such
+    // validation.
+    if (trimmed.length === 0) {
+      const { limit, maxDistance } = this.resolveOptions(options);
+      return {
+        query: trimmed,
+        embeddingModel: this.llm.embeddingModel,
+        limit,
+        maxDistance,
+        hits: [],
+      };
+    }
 
     // One embedding call per search — ~1.2s in production, measured. That is
     // the floor on answer latency and the reason Step 6 streams rather than
-    // waiting. Worth remembering before adding a second search per question.
+    // waiting. A caller with MANY queries should embed them in one batch and
+    // use searchByVector instead of calling this in a loop.
     const { vectors } = await this.llm.embed([trimmed]);
-    const literal = JSON.stringify(vectors[0]);
+    return this.searchByVector(trimmed, vectors[0], options);
+  }
+
+  /**
+   * The search itself, for a vector that already exists.
+   *
+   * Split out because `embed()` is batch-shaped and this is not: embedding N
+   * queries costs one round trip, searching with N vectors costs N local
+   * queries. A caller that loops over searchKnowledge turns one network call
+   * into N — the same mistake Step 1 designed embed(string[]) to prevent, and
+   * the one the first version of the retrieval eval made. Thirty-four
+   * sequential calls on a lossy link took 207 seconds and then failed.
+   *
+   * `query` is provenance only: it is the text the vector was produced from,
+   * and it is echoed into the result so a hit list can still be traced back
+   * to a question. Nothing re-embeds it, so a caller that passes a vector and
+   * an unrelated string will get a plausible-looking lie. Keep them together.
+   */
+  async searchByVector(
+    query: string,
+    vector: number[],
+    options: SearchOptions = {},
+  ): Promise<KnowledgeSearchResult> {
+    const { limit, maxDistance } = this.resolveOptions(options);
+    const literal = JSON.stringify(vector);
 
     const hits = await this.prisma.$queryRaw<KnowledgeHit[]>`
       SELECT source, heading, "chunkIndex", content, distance
@@ -143,7 +188,7 @@ export class RetrievalService {
     );
 
     return {
-      query: trimmed,
+      query,
       embeddingModel: this.llm.embeddingModel,
       limit,
       maxDistance,
