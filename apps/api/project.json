@@ -103,6 +103,13 @@
       "options": {
         "command": "jest --config apps/api/jest.ground-truth.config.cts"
       }
+    },
+    "eval-retrieval": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "jest --config apps/api/jest.eval.config.cts retrieval"
+      }
     }
   }
 }
