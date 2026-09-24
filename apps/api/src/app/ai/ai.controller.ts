@@ -174,7 +174,23 @@ export class AiController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async ask(@Body() body: AskDto, @CurrentUser() user: JwtPayload) {
     try {
-      const result = await this.answering.answer(body.question, { userId: user.sub });
+      // One instant for the whole turn.
+      //
+      // The answering loop can call tools more than once, and each call used
+      // to read the clock independently — so a reply that straddles IST
+      // midnight could resolve two different "last month"s and reconcile
+      // neither. Fixing it here, at the edge of the request, means everything
+      // downstream answers the question as it was asked rather than as the
+      // clock has since become.
+      //
+      // It is assembled in the same object as `userId` on purpose. Both are
+      // facts about the request that the model must not supply: identity
+      // comes from the verified JWT, time comes from the server. Neither is
+      // negotiable from inside the conversation.
+      const result = await this.answering.answer(body.question, {
+        userId: user.sub,
+        now: new Date(),
+      });
 
       // THIS MAPPING IS THE SECOND HALF OF THE GUARDRAIL, not tidiness.
       //

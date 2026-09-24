@@ -20,10 +20,10 @@ class FakeRetrieval {
 }
 
 class FakeAggregates {
-  calls: Array<{ userId: string; period: string }> = [];
+  calls: Array<{ userId: string; period: string; now: Date }> = [];
 
-  async spendByCategory(userId: string, period: string) {
-    this.calls.push({ userId, period });
+  async spendByCategory(userId: string, period: string, now: Date) {
+    this.calls.push({ userId, period, now });
     return { total: '₹0.00' };
   }
 }
@@ -34,8 +34,20 @@ const call = (name: string, argumentsJson: string): ToolCall => ({
   argumentsJson,
 });
 
+/**
+ * A fixed instant rather than `new Date()`. A spec that reads the wall clock
+ * has expectations that depend on when it runs — and the property under test
+ * here is precisely that the clock arrives through the context rather than
+ * from ambient state, so reading ambient state to check it would be circular.
+ *
+ * The project's canonical anchor, so there is one reference instant across
+ * the harness. Nothing in this file touches the fixture; it is the same date
+ * for the same reason, not a dependency on it.
+ */
+const NOW = new Date('2026-09-15T12:00:00Z');
+
 describe('ToolRegistryService', () => {
-  const CONTEXT = { userId: 'user-under-test' };
+  const CONTEXT = { userId: 'user-under-test', now: NOW };
 
   let retrieval: FakeRetrieval;
   let aggregates: FakeAggregates;
@@ -181,7 +193,29 @@ describe('ToolRegistryService', () => {
       );
 
       expect(aggregates.calls).toEqual([
-        { userId: 'user-under-test', period: 'last_month' },
+        { userId: 'user-under-test', period: 'last_month', now: NOW },
+      ]);
+    });
+
+    it('ignores a time supplied in the arguments and uses the context instant', async () => {
+      // The companion to the identity test above, and for the same reason.
+      //
+      // `now` is not the model's to choose. A model that could supply the
+      // current instant could resolve "last month" against a date it
+      // invented, and the answer would be confidently wrong about which
+      // month it was describing — wrong in a way no reader could detect,
+      // because the figures would be internally consistent.
+      //
+      // As with identity, the call SUCCEEDS with the stray field ignored
+      // rather than rejected. Nothing reads a date from arguments, so
+      // ignoring is exactly as safe and does not cost a conversation turn.
+      await registry.execute(
+        call('spend_by_category', '{"period":"last_month","now":"2020-01-01T00:00:00Z"}'),
+        CONTEXT,
+      );
+
+      expect(aggregates.calls).toEqual([
+        { userId: 'user-under-test', period: 'last_month', now: NOW },
       ]);
     });
   });

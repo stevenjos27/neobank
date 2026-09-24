@@ -96,10 +96,10 @@ class FakeRetrieval {
 }
 
 class FakeAggregates {
-  readonly calls: Array<{ userId: string; period: string }> = [];
+  readonly calls: Array<{ userId: string; period: string; now: Date }> = [];
 
-  async spendByCategory(userId: string, period: string) {
-    this.calls.push({ userId, period });
+  async spendByCategory(userId: string, period: string, now: Date) {
+    this.calls.push({ userId, period, now });
     return {
       period,
       periodLabel: 'August 2026',
@@ -125,8 +125,21 @@ const toolCall = (name: string, args: unknown): ToolCall => ({
 const SEARCH = toolCall('search_knowledge', { q: 'overdraft?' });
 const SPEND = toolCall('spend_by_category', { period: 'last_month' });
 
+/**
+ * A fixed instant rather than `new Date()`. A spec that reads the wall clock
+ * has expectations that depend on when it runs — and what this file asserts
+ * is that the clock arrives through the context rather than from ambient
+ * state, so reading ambient state to check it would be circular.
+ *
+ * Deliberately duplicated from tool-registry.service.spec.ts rather than
+ * shared. Extracting it would imply these unit specs depend on the seed
+ * fixture; they do not. It is the project's reference instant used for
+ * recognisability, not a coupling.
+ */
+const NOW = new Date('2026-09-15T12:00:00Z');
+
 describe('AnsweringService', () => {
-  const CONTEXT = { userId: 'user-under-test' };
+  const CONTEXT = { userId: 'user-under-test', now: NOW };
 
   let retrieval: FakeRetrieval;
   let aggregates: FakeAggregates;
@@ -229,15 +242,21 @@ describe('AnsweringService', () => {
       // And the error genuinely reached the model rather than only the audit.
       const secondCall = JSON.stringify(provider.requests[1].messages);
       expect(secondCall).toContain('last_month');
-      expect(aggregates.calls).toEqual([{ userId: 'user-under-test', period: 'last_month' }]);
+      expect(aggregates.calls).toEqual([{ userId: 'user-under-test', period: 'last_month', now: NOW }]);
     });
   });
 
-  describe('identity crosses the loop unchanged', () => {
+  describe('the context crosses the loop unchanged', () => {
     it('uses the JWT subject even when the model supplies a userId argument', async () => {
       // The Step 3 property, re-asserted one layer up. The registry has its
       // own test for this; what this covers is that AnsweringService passes
       // the context through rather than assembling one from the model's turn.
+      //
+      // The assertion now covers `now` as well as `userId`, which is the
+      // point of naming the block after the context rather than after
+      // identity: the invariant is that nothing between the controller and
+      // the tool gets to rewrite what the server knows, and it should keep
+      // holding as fields are added.
       const provider = new ScriptedProvider(
         {
           toolCalls: [
@@ -251,7 +270,7 @@ describe('AnsweringService', () => {
       await build(provider).answer('what did I spend?', CONTEXT);
 
       expect(aggregates.calls).toEqual([
-        { userId: 'user-under-test', period: 'last_month' },
+        { userId: 'user-under-test', period: 'last_month', now: NOW },
       ]);
     });
   });
