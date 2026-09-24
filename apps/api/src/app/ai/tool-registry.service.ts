@@ -5,11 +5,33 @@ import { AggregatesService } from './aggregates.service';
 import { isPeriod, PERIODS } from './period';
 
 /**
- * Who is asking. A SEPARATE PARAMETER from the tool arguments, so that
- * identity and model output cannot be confused for one another even by
- * accident — there is no object anywhere in this file that holds both.
+ * Who is asking, and WHEN the question is being answered.
+ *
+ * A SEPARATE PARAMETER from the tool arguments, so that identity and model
+ * output cannot be confused for one another even by accident — there is no
+ * object anywhere in this file that holds both.
+ *
+ * `now` belongs here for the same two reasons `userId` does, and both are
+ * worth stating because only the first is obvious.
+ *
+ * 1. THE MODEL MUST NOT CHOOSE IT. A model that could supply the current
+ *    instant could resolve "last month" against a date it invented, and the
+ *    answer would be confidently wrong about which month it described.
+ *    Identity and time are both things the server knows and the model guesses.
+ *
+ * 2. ONE ANSWER, ONE CLOCK. `spendByCategory` defaults `now` to `new Date()`,
+ *    so until now each tool call read the wall clock independently. A reply
+ *    that calls the tool twice while the IST day rolls over would resolve two
+ *    different "last month"s and reconcile neither. Fixing the instant for the
+ *    whole turn makes a multi-call answer internally consistent by
+ *    construction rather than by luck.
+ *
+ * Required, not optional. An optional `now` would let every future call site
+ * silently fall back to the wall clock — which is precisely the bug — and the
+ * compiler would say nothing. Required means adding a call site forces a
+ * decision about which clock it runs on.
  */
-export type ToolContext = { userId: string };
+export type ToolContext = { userId: string; now: Date };
 
 /**
  * A tool outcome is DATA, not an exception, and the distinction is the design.
@@ -248,10 +270,14 @@ export class ToolRegistryService {
 
     // `context.userId`, never `args`. This is the line the whole step exists
     // to make true.
+    //
+    // `context.now` for the same reason, and so that every tool call within a
+    // single answer resolves against one instant rather than re-reading the
+    // clock each time.
     return {
       ok: true,
       name,
-      result: await this.aggregates.spendByCategory(context.userId, period),
+      result: await this.aggregates.spendByCategory(context.userId, period, context.now),
     };
   }
 }
