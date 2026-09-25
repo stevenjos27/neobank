@@ -77,7 +77,14 @@ const DEFINITIONS: ToolDefinition[] = [
       properties: {
         q: {
           type: 'string',
-          description: "The customer's question, in their own words.",
+          description:
+            "The customer's question, copied as they asked it. This is " +
+            'semantic search over whole sentences, NOT keyword search. Do ' +
+            'not summarise the question, shorten it, or turn it into search ' +
+            'terms: a compressed phrase retrieves worse than the sentence it ' +
+            'came from and often retrieves nothing at all. If the customer ' +
+            'asked about two things at once, pass the whole of the part that ' +
+            'concerns policy — still in their own words, still a sentence.',
         },
         limit: {
           type: 'integer',
