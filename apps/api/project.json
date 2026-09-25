@@ -110,6 +110,13 @@
       "options": {
         "command": "jest --config apps/api/jest.eval.config.cts retrieval"
       }
+    },
+    "eval-answer": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "jest --config apps/api/jest.eval.config.cts answer"
+      }
     }
   }
 }
