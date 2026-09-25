@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { findUnsupportedAmounts } from './amounts';
 import {
   ChatMessage,
   LLM_PROVIDER_TOKEN,
@@ -25,9 +26,6 @@ const MAX_MODEL_CALLS = 3;
 
 /** Enough for two or three sentences plus a tool-call payload. */
 const MAX_OUTPUT_TOKENS = 600;
-
-/** Matches the exact shape `formatPaise` emits, and nothing else. */
-const RUPEE_AMOUNT = /₹\s?[\d,]+(?:\.\d{2})?/g;
 
 /**
  * Shown INSTEAD OF the model's answer when an amount cannot be traced to a
@@ -206,7 +204,10 @@ export class AnsweringService {
       }
     }
 
-    const unsupportedAmounts = this.findUnsupportedAmounts(answer, toolPayloads);
+    // From ./amounts, shared with the streaming guard rather than duplicated.
+    // Two implementations of this rule would mean the same answer could be
+    // suppressed when buffered and published when streamed.
+    const unsupportedAmounts = findUnsupportedAmounts(answer, toolPayloads);
     let withheldAnswer: string | undefined;
 
     if (unsupportedAmounts.length > 0) {
@@ -284,33 +285,4 @@ export class AnsweringService {
     }
   }
 
-  /**
-   * Every rupee amount in the answer that appears in NO tool payload.
-   *
-   * This is the most valuable runtime guardrail in Step 4, and it works only
-   * because of a decision made two steps ago: **tools return money
-   * PRE-FORMATTED**, so a correct answer quotes a string that exists verbatim
-   * in a tool result. Had the tools returned raw paise and left the model to
-   * format, every amount in the answer would be model-authored and none of
-   * this would be checkable.
-   *
-   * A reformatted-but-arithmetically-correct figure is flagged too, and that
-   * is intentional. The instruction is to quote exactly; a model that
-   * reformats is a model that is processing figures rather than repeating
-   * them, which is the behaviour one step away from computing them.
-   */
-  private findUnsupportedAmounts(answer: string, toolPayloads: string[]): string[] {
-    const amounts = answer.match(RUPEE_AMOUNT);
-    if (!amounts) return [];
-
-    const unsupported = new Set<string>();
-    for (const amount of amounts) {
-      const normalised = amount.replace(/\s/g, '');
-      if (!toolPayloads.some((payload) => payload.includes(normalised))) {
-        unsupported.add(amount);
-      }
-    }
-
-    return [...unsupported];
-  }
 }
