@@ -4,12 +4,16 @@ import {
   EmbedResult,
   LlmProvider,
   ToolCall,
+  TextDeltaHandler
 } from './llm-provider.interface';
 import { AggregatesService } from './aggregates.service';
 import { RetrievalService } from './retrieval.service';
 import { ToolRegistryService } from './tool-registry.service';
 import { AnsweringService } from './answering.service';
 import { ASSISTANT_PROMPT_VERSION, ASSISTANT_SYSTEM_PROMPT } from './assistant-prompt';
+
+/** See MOCK_CHUNK in mock.provider.ts. Awkward on purpose. */
+const DELTA_CHARS = 7;
 
 /**
  * A provider that replays a scripted sequence and records what it was asked.
@@ -51,6 +55,25 @@ class ScriptedProvider implements LlmProvider {
       );
     }
     return next;
+  }
+
+  async chatStream(request: ChatRequest, onText: TextDeltaHandler): Promise<ChatResult> {
+    // Delegates to `chat`, which makes a scripted answer identical whichever
+    // way it is delivered and makes the interface's contract — result.text
+    // equals the concatenation of the deltas — true by construction.
+    //
+    // Chunked rather than emitted whole, because the streaming answering loop
+    // this double will soon exercise puts every delta through the amount
+    // guard. A double that emitted the answer in one piece would let that
+    // guard pass without ever holding text back, which is the only
+    // interesting thing it does.
+    const result = await this.chat(request);
+
+    for (let i = 0; i < result.text.length; i += DELTA_CHARS) {
+      onText(result.text.slice(i, i + DELTA_CHARS));
+    }
+
+    return result;
   }
 
   async embed(): Promise<EmbedResult> {

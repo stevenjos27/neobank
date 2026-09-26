@@ -156,6 +156,16 @@ export class LlmError extends Error {
   }
 }
 
+/**
+ * Called with each text fragment as the model produces it.
+ *
+ * Synchronous on purpose. The provider must not be blocked by whatever the
+ * consumer does with a delta, and an async callback would make the provider
+ * responsible for a consumer's backpressure. Known simplification: a slow
+ * client cannot slow the model down, so the consumer buffers or drops.
+ */
+export type TextDeltaHandler = (delta: string) => void;
+
 export interface LlmProvider {
   readonly name: string;
   readonly chatModel: string;
@@ -164,5 +174,27 @@ export interface LlmProvider {
   readonly embeddingDimensions: number;
 
   chat(request: ChatRequest): Promise<ChatResult>;
+  /**
+ * The streaming counterpart to `chat`, returning the SAME ChatResult.
+ *
+ * IDENTICAL RETURN TYPE ON PURPOSE. Tool handling, finish reasons and usage
+ * accumulation are the same work whether or not the text arrived in pieces,
+ * and an event-union return would have forced the answering loop to be
+ * written twice — once for each delivery mode — with the guardrails in only
+ * one of them. The single difference between these two methods is that one
+ * reports its text as it goes.
+ *
+ * ONLY CONTENT DELTAS ARE REPORTED. Tool-call fragments are accumulated and
+ * appear whole in the returned ChatResult, because a half-formed tool call
+ * is not something any caller can act on — the same reasoning that keeps
+ * `argumentsJson` a raw string. Partial JSON is not a value.
+ *
+ * THE CONTRACT THAT MATTERS: `result.text` equals the concatenation of every
+ * delta passed to `onText`. The answering service publishes the deltas and
+ * runs the guardrail over the final text, so if those two ever disagreed it
+ * could publish a figure the guardrail never examined. Asserted in the
+ * provider specs rather than assumed.
+ */
+  chatStream(request: ChatRequest, onText: TextDeltaHandler): Promise<ChatResult>;
   embed(texts: string[]): Promise<EmbedResult>;
 }
