@@ -5,6 +5,7 @@ import {
   HttpCode,
   InternalServerErrorException,
   Post,
+  Res,
   ServiceUnavailableException,
   UseGuards
 } from "@nestjs/common";
@@ -24,6 +25,7 @@ import { JwtPayload } from "../auth/jwt-payload.interface";
 import { SpendByCategoryDto } from "./dto/spend-by-category.dto";
 import { AnsweringService } from "./answering.service";
 import { AskDto } from "./dto/ask.dto";
+import type { ServerResponse } from 'node:http';
 
 @ApiTags('ai')
 @ApiBearerAuth()
@@ -228,6 +230,101 @@ export class AiController {
       };
     } catch (error) {
       throw this.toHttp(error, 'Answering');
+    }
+  }
+
+  /**
+ * Ask the assistant, streamed.
+ *
+ * POST, NOT GET, AND NOT @Sse(). Nest's @Sse() decorator registers a GET
+ * route, and a GET carries the question in the URL — where it lands in
+ * access logs, proxy logs, browser history and Referer headers. "How much
+ * did I spend on my divorce lawyer last month" is not a query string. The
+ * cost is that the browser cannot use EventSource, which is GET-only, so
+ * the client reads the body with fetch instead; that is about fifteen lines
+ * and it is the right trade for a bank.
+ *
+ * ONE FRAME PER LINE, `data: {json}`. Each frame carries its own `type`
+ * rather than using SSE's named-event field, because a fetch-based reader
+ * parses the body itself and a single shape is simpler than two.
+ *
+ * THE SAME MAPPING AS /ai/ask, and for the same reasons. `withheldAnswer`
+ * never crosses this boundary either — it holds the figure the suppression
+ * existed to withhold — and `sources` is fed by `citedSources`, the subset
+ * the answer actually names.
+ *
+ * TYPED AS NODE'S ServerResponse, NOT express's Response. express is not a
+ * dependency of this app — it arrives inside @nestjs/platform-express, and
+ * pnpm's isolated node_modules makes it unresolvable from here, correctly.
+ * Declaring @types/express would describe a package this app cannot import
+ * and would pin it to express 4 or 5 over a route that uses neither's
+ * distinctive features. Every member used below is on the Node response
+ * that express's extends, so the accurate type is also the portable one.
+ */
+  @Post('ask/stream')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async askStream(
+    @Body() body: AskDto,
+    @CurrentUser() user: JwtPayload,
+    @Res() res: ServerResponse,
+  ): Promise<void> {
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    // Nginx, and most CDNs, buffer a response until it completes — which
+    // turns a token stream back into a slow request/response and would make
+    // this whole step look broken in production while working locally.
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    // A customer who closes the tab should not have frames written at them.
+    // Guarded inside `send` rather than at each call site, so the `done` and
+    // `error` frames are covered too — they are the ones most likely to be
+    // written after a client has gone.
+    //
+    // The model call itself is NOT cancelled: there is no AbortSignal threaded
+    // through the provider seam yet, so the request still costs what it costs.
+    // Logged as a gap rather than half-solved here.
+    let clientGone = false;
+
+    const send = (frame: unknown): void => {
+      if (clientGone) return;
+      res.write(`data: ${JSON.stringify(frame)}\n\n`);
+    };
+
+    res.on('close', () => {
+      clientGone = true;
+    });
+
+    try {
+      const result = await this.answering.answerStream(
+        body.question,
+        // One instant for the whole turn, as on /ai/ask. See ToolContext.
+        { userId: user.sub, now: new Date() },
+        send,
+      );
+
+      // The authoritative text, after suppression. The client has been
+      // accumulating deltas, but this is what it should end up displaying:
+      // it is correct in the withheld case, where the deltas are not.
+      send({
+        type: 'done',
+        answer: result.answer,
+        sources: result.citedSources.map(({ source, heading, chunkIndex }) => ({
+          source,
+          heading,
+          chunkIndex,
+        })),
+      });
+    } catch (error) {
+      // The status line went out with the headers, so a failure here cannot
+      // become a 500 — it has to be a frame. `toHttp` is reused for its other
+      // job: producing a message safe to show a customer, since provider
+      // errors can echo prompt content and prompts carry financial data.
+      send({ type: 'error', message: this.toHttp(error, 'Answering').message });
+    } finally {
+      res.end();
     }
   }
 
