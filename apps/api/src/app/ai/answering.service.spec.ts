@@ -9,7 +9,7 @@ import {
 import { AggregatesService } from './aggregates.service';
 import { RetrievalService } from './retrieval.service';
 import { ToolRegistryService } from './tool-registry.service';
-import { AnsweringService } from './answering.service';
+import { AnsweringService, AnswerStreamEvent } from './answering.service';
 import { ASSISTANT_PROMPT_VERSION, ASSISTANT_SYSTEM_PROMPT } from './assistant-prompt';
 
 /** See MOCK_CHUNK in mock.provider.ts. Awkward on purpose. */
@@ -408,10 +408,96 @@ describe('AnsweringService', () => {
     });
   });
 
+  describe('streaming', () => {
+    /** A tool round, then an answer — the shape of every real spend reply. */
+    const spendThen = (text: string) =>
+      new ScriptedProvider(
+        { toolCalls: [SPEND], finishReason: 'tool_calls' },
+        { text },
+      );
+
+    const stream = async (provider: ScriptedProvider) => {
+      const events: AnswerStreamEvent[] = [];
+      const result = await build(provider).answerStream(
+        'what did I spend?',
+        CONTEXT,
+        (event) => events.push(event),
+      );
+      const published = events.map((e) => (e.type === 'delta' ? e.text : '')).join('');
+      return { events, result, published };
+    };
+
+    it('publishes the answer as deltas that reassemble to it', async () => {
+      const { published, result } = await stream(
+        spendThen('In August 2026 you spent ₹10,000.00.'),
+      );
+
+      // ScriptedProvider chunks at 7 characters, so the amount arrives split
+      // across deltas and is republished whole by the guard. A provider that
+      // emitted the answer in one piece would make this pass without the
+      // guard doing anything.
+      expect(published).toBe(result.answer);
+    });
+
+    it('reports the tool before running it, and before any text', async () => {
+      const { events } = await stream(spendThen('In August 2026 you spent ₹10,000.00.'));
+      const types = events.map((event) => event.type);
+
+      expect(events[0]).toEqual({ type: 'tool', name: 'spend_by_category' });
+      // Every tool event precedes every delta: the progress is what fills the
+      // wait, so arriving after the answer would make it decorative.
+      expect(types.indexOf('delta')).toBeGreaterThan(types.lastIndexOf('tool'));
+    });
+
+    it('returns the same result as the buffered path', async () => {
+      const text = 'In August 2026 you spent ₹10,000.00.';
+
+      const streamed = (await stream(spendThen(text))).result;
+      const buffered = await build(spendThen(text)).answer('what did I spend?', CONTEXT);
+
+      // durationMs is wall clock and differs by a millisecond or two.
+      // EVERYTHING ELSE MUST MATCH EXACTLY. The guardrails, the citations, the
+      // audit and the usage are the answer; a customer must not get a
+      // different one for having opened the streaming page.
+      expect({ ...streamed, durationMs: 0 }).toEqual({ ...buffered, durationMs: 0 });
+    });
+
+    it('publishes an amount the tools support', async () => {
+      const { published, events } = await stream(spendThen('You spent ₹10,000.00 in total.'));
+
+      expect({
+        quoted: published.includes('₹10,000.00'),
+        withheld: events.some((event) => event.type === 'withheld'),
+      }).toEqual({ quoted: true, withheld: false });
+    });
+
+    it('never publishes an amount the tools do not support', async () => {
+      const { published, events, result } = await stream(
+        spendThen('You spent ₹9,999.00 last month.'),
+      );
+
+      expect({
+        leaked: published.includes('₹9,999.00'),
+        // Not even a partial figure. A truncated amount reads as a real one.
+        anyFigure: /₹/.test(published),
+        withheld: events.some((event) => event.type === 'withheld'),
+        unsupported: result.unsupportedAmounts,
+        suppressed: result.withheldAnswer !== undefined,
+      }).toEqual({
+        leaked: false,
+        anyFigure: false,
+        withheld: true,
+        unsupported: ['₹9,999.00'],
+        suppressed: true,
+      });
+    });
+  });
+
   it('carries the prompt version, so a score can be attributed to a prompt', async () => {
     const provider = new ScriptedProvider({ text: 'No.' });
     const result = await build(provider).answer('anything', CONTEXT);
 
     expect(result.promptVersion).toBe(ASSISTANT_PROMPT_VERSION);
   });
+
 });

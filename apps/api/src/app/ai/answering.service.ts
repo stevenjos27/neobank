@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { findUnsupportedAmounts } from './amounts';
+import { findUnsupportedAmounts, isAmountSupported } from './amounts';
 import {
   ChatMessage,
   LLM_PROVIDER_TOKEN,
@@ -7,6 +7,7 @@ import {
 } from './llm-provider.interface';
 import { ToolContext, ToolRegistryService } from './tool-registry.service';
 import { ASSISTANT_PROMPT_VERSION, ASSISTANT_SYSTEM_PROMPT } from './assistant-prompt';
+import { AmountGuard } from './amount-guard';
 
 /**
  * Three model calls, and the last one is offered NO TOOLS.
@@ -100,6 +101,29 @@ export type AnswerResult = {
   durationMs: number;
 };
 
+/**
+ * What a streaming consumer is told while the answer is built.
+ *
+ * `tool` fills the wait with something true — the model is searching the
+ * documents, or looking up spending — rather than a spinner.
+ *
+ * `delta` is text that has already passed the amount guard. Nothing reaches a
+ * customer unverified.
+ *
+ * `reset` means discard what was published: a round wrote text and then asked
+ * for a tool, so that text is not part of the answer.
+ *
+ * `withheld` means discard everything and show the notice. Whole-answer
+ * suppression, the same semantics as the buffered path.
+ */
+export type AnswerStreamEvent =
+  | { type: 'tool'; name: string }
+  | { type: 'delta'; text: string }
+  | { type: 'reset' }
+  | { type: 'withheld' };
+
+export type AnswerSink = (event: AnswerStreamEvent) => void;
+
 @Injectable()
 export class AnsweringService {
   private readonly logger = new Logger(AnsweringService.name);
@@ -109,7 +133,35 @@ export class AnsweringService {
     private readonly tools: ToolRegistryService,
   ) { }
 
-  async answer(question: string, context: ToolContext): Promise<AnswerResult> {
+  /** Answer, buffered. Nothing is returned until the whole reply exists. */
+  answer(question: string, context: ToolContext): Promise<AnswerResult> {
+    return this.run(question, context);
+  }
+
+  /**
+   * Answer, streamed. Returns the SAME AnswerResult as `answer`, and reports
+   * progress through `sink` along the way — the provider seam's chat/chatStream
+   * pair one layer up, for the same reason: one loop, one set of guardrails,
+   * and a result that cannot differ by delivery mode.
+   *
+   * `sink` governs what the CUSTOMER sees. The returned result is computed
+   * exactly as the buffered path computes it, so unsupportedAmounts,
+   * withheldAnswer and citedSources are identical either way. That is what lets
+   * the answer eval keep meaning something about both.
+   */
+  answerStream(
+    question: string,
+    context: ToolContext,
+    sink: AnswerSink,
+  ): Promise<AnswerResult> {
+    return this.run(question, context, sink);
+  }
+
+  private async run(
+    question: string,
+    context: ToolContext,
+    sink?: AnswerSink,
+  ): Promise<AnswerResult> {
     const startedAt = Date.now();
 
     const messages: ChatMessage[] = [
@@ -131,13 +183,43 @@ export class AnsweringService {
     for (let call = 1; call <= MAX_MODEL_CALLS; call++) {
       const isFinalCall = call === MAX_MODEL_CALLS;
 
-      const result = await this.llm.chat({
+      const request = {
         messages,
         temperature: 0,
         maxOutputTokens: MAX_OUTPUT_TOKENS,
         // The structural cap. See MAX_MODEL_CALLS.
         tools: isFinalCall ? undefined : this.tools.definitions(),
-      });
+      };
+
+      // One guard per round, closing over `toolPayloads` — the LIVE array, so
+      // by the round that produces the answer, every payload the model was
+      // shown is already in it. A round that answers before any tool has run
+      // has nothing to verify against, and an amount there is held back: a
+      // figure no tool produced is a figure the model invented.
+      const guard = new AmountGuard((amount) => isAmountSupported(amount, toolPayloads));
+      let published = 0;
+
+      const result = sink
+        ? await this.llm.chatStream(request, (delta) => {
+          // Nothing to do when the guard withholds — it stops itself, and the
+          // definitive verdict comes from findUnsupportedAmounts over the
+          // finished text below. One policy, computed once, so the stream and
+          // the returned result cannot disagree about the same answer.
+          const out = guard.push(delta);
+          if (out.text) {
+            published += out.text.length;
+            sink({ type: 'delta', text: out.text });
+          }
+        })
+        : await this.llm.chat(request);
+
+      if (sink) {
+        const tail = guard.end();
+        if (tail.text) {
+          published += tail.text.length;
+          sink({ type: 'delta', text: tail.text });
+        }
+      }
 
       modelCalls = call;
       model = result.model;
@@ -157,6 +239,16 @@ export class AnsweringService {
         break;
       }
 
+
+      // A round that both wrote text and asked for a tool. The buffered path
+      // discards such text too — `answer` is only ever taken from the tool-free
+      // round — so anything published here is not part of the answer and the
+      // client is told to drop it. Empirically the model does one or the other;
+      // this exists so the rare case is correct rather than invisible.
+      if (published > 0) {
+        sink?.({ type: 'reset' });
+      }
+
       // The assistant's own turn must be replayed back verbatim, including the
       // calls it made — the provider matches the `tool` messages below against
       // these ids, and a missing assistant turn makes the ids unresolvable.
@@ -167,6 +259,10 @@ export class AnsweringService {
       });
 
       for (const toolCall of result.toolCalls) {
+        // Before execution, not after. The point of the event is to fill the
+        // wait, and the wait IS the execution.
+        sink?.({ type: 'tool', name: toolCall.name });
+
         const execution = await this.tools.execute(toolCall, context);
 
         if ('error' in execution) {
@@ -221,6 +317,7 @@ export class AnsweringService {
       );
       withheldAnswer = answer;
       answer = WITHHELD_ANSWER;
+      sink?.({ type: 'withheld' });
     }
 
     // Computed AFTER suppression and against `answer`, not against the model's
