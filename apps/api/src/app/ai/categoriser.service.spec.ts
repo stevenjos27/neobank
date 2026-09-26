@@ -40,6 +40,16 @@ class StubProvider implements LlmProvider {
     };
   }
 
+  async chatStream(): Promise<ChatResult> {
+    throw new Error(
+      'StubProvider does not implement chatStream. The categoriser has no ' +
+      'streaming path — it makes one request and parses a JSON reply — so a ' +
+      'stub that quietly returned something would imply coverage that does ' +
+      'not exist. If this ever throws, the categoriser has grown a streaming ' +
+      'call that nobody designed.',
+    );
+  }
+
   async embed(): Promise<EmbedResult> {
     throw new Error('the categoriser must never call embed()');
   }

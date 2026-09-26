@@ -5,7 +5,8 @@ import {
   ChatResult,
   EmbedResult,
   LlmProvider,
-  ToolDefinition
+  ToolDefinition,
+  TextDeltaHandler
 } from './llm-provider.interface';
 
 /**
@@ -14,6 +15,17 @@ import {
  * fail on the INSERT, which is the one place a mock must not diverge.
  */
 const MOCK_DIMENSIONS = 1536;
+
+/**
+ * Deltas are this many characters, and the number is deliberately awkward.
+ *
+ * Not word-aligned, not token-aligned, and coprime with nothing in
+ * particular — so a rupee amount in a mocked answer gets split across
+ * deltas rather than arriving intact. A mock that emitted whole words would
+ * never exercise the stream guard's hard path, and CI would happily pass a
+ * guard that only works when the number happens to arrive in one piece.
+ */
+const MOCK_CHUNK = 7;
 
 /**
  * A deterministic, offline LlmProvider.
@@ -106,6 +118,23 @@ export class MockLlmProvider implements LlmProvider {
       model: this.chatModel,
       usage: { inputTokens: 0, outputTokens: 0 },
     };
+  }
+
+  async chatStream(request: ChatRequest, onText: TextDeltaHandler): Promise<ChatResult> {
+    // Delegates to `chat`, which makes two things true for free: the mock
+    // answers a question identically whichever way it is delivered, and the
+    // interface's contract — result.text equals the concatenation of the
+    // deltas — holds by construction rather than by care.
+    const result = await this.chat(request);
+
+    for (let i = 0; i < result.text.length; i += MOCK_CHUNK) {
+      onText(result.text.slice(i, i + MOCK_CHUNK));
+    }
+
+    // A tool-call response has no content, so no delta fires. That is the
+    // normal shape of the first two rounds of the answering loop, not an edge
+    // case — the user-visible text only exists on the final call.
+    return result;
   }
 
   private isJson(value: string): boolean {

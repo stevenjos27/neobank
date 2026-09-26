@@ -9,7 +9,8 @@ import {
   LlmErrorKind,
   LlmProvider,
   ToolCall,
-  ToolDefinition
+  ToolDefinition,
+  TextDeltaHandler
 } from './llm-provider.interface';
 import { Injectable, Logger } from '@nestjs/common';
 
@@ -95,37 +96,61 @@ export class OpenAiProvider implements LlmProvider {
     });
   }
 
-  async chat(request: ChatRequest): Promise<ChatResult> {
-    // Checked BEFORE the try, because this is a programming error in our own
-    // caller, not a provider condition. OpenAI's JSON mode rejects a request
-    // whose messages never mention JSON, with an error that explains nothing
-    // about why. Failing here names the actual requirement.
-    if (request.responseFormat === 'json') {
-      const mentionsJson = request.messages.some((message) => /json/i.test(message.content));
-      if (!mentionsJson) {
-        throw new Error(
-          `responseFormat 'json' requires the word "JSON" to appear in the messages. ` +
-          `This is OpenAI's constraint on json_object mode, not ours.`,
-        );
-      }
+  /**
+ * The request body, built in ONE place for both delivery modes.
+ *
+ * If `chat` and `chatStream` built their own params, a streamed answer could
+ * be produced at a different temperature or token ceiling than a buffered
+ * one — and the answer eval, which exercises the buffered path, would stop
+ * predicting anything about the streamed path. The two methods must differ
+ * only in how the text arrives.
+ *
+ * No return annotation: the SDK's params type moves between versions, and
+ * the assignability check happens at the call sites anyway.
+ */
+  private toCreateParams(request: ChatRequest) {
+    return {
+      model: this.chatModel,
+      messages: this.toOpenAiMessages(request.messages),
+      // Deterministic by default. A bank answering the same question two
+      // different ways is a support ticket; callers opt IN to variation.
+      // This applies to TOOL SELECTION too, which is the more important half
+      // now: a model that picks a different tool for the same question on
+      // alternate runs makes every eval meaningless.
+      temperature: request.temperature ?? 0,
+      max_completion_tokens: request.maxOutputTokens ?? 800,
+      ...(request.tools?.length ? { tools: this.toOpenAiTools(request.tools) } : {}),
+      ...(request.responseFormat === 'json'
+        ? { response_format: { type: 'json_object' as const } }
+        : {}),
+    };
+  }
+
+  /**
+   * Checked BEFORE the try, because this is a programming error in our own
+   * caller, not a provider condition. OpenAI's JSON mode rejects a request
+   * whose messages never mention JSON, with an error that explains nothing
+   * about why. Failing here names the actual requirement.
+   */
+  private assertJsonModeIsUsable(request: ChatRequest): void {
+    if (request.responseFormat !== 'json') return;
+
+    const mentionsJson = request.messages.some((message) => /json/i.test(message.content));
+    if (!mentionsJson) {
+      throw new Error(
+        `responseFormat 'json' requires the word "JSON" to appear in the messages. ` +
+        `This is OpenAI's constraint on json_object mode, not ours.`,
+      );
     }
+  }
+
+  async chat(request: ChatRequest): Promise<ChatResult> {
+    this.assertJsonModeIsUsable(request);
 
     try {
-      const completion = await this.client.chat.completions.create({
-        model: this.chatModel,
-        messages: this.toOpenAiMessages(request.messages),
-        // Deterministic by default. A bank answering the same question two
-        // different ways is a support ticket; callers opt IN to variation.
-        // This applies to TOOL SELECTION too, which is the more important
-        // half now: a model that picks a different tool for the same question
-        // on alternate runs makes every eval meaningless.
-        temperature: request.temperature ?? 0,
-        max_completion_tokens: request.maxOutputTokens ?? 800,
-        ...(request.tools?.length ? { tools: this.toOpenAiTools(request.tools) } : {}),
-        ...(request.responseFormat === 'json'
-          ? { response_format: { type: 'json_object' as const } }
-          : {}),
-      });
+      const completion = await this.client.chat.completions.create(
+        this.toCreateParams(request),
+      );
 
       const choice = completion.choices[0];
       const toolCalls = this.readToolCalls(choice?.message?.tool_calls);
@@ -136,8 +161,8 @@ export class OpenAiProvider implements LlmProvider {
       // This used to throw whenever `content` was falsy. But when a model
       // requests a tool, `content` is null BY DESIGN and the payload lives in
       // `tool_calls` — so the old guard would have rejected every successful
-      // tool call as an empty completion. Emptiness is only a failure when
-      // the model returned neither prose nor a tool request.
+      // tool call as an empty completion. Emptiness is only a failure when the
+      // model returned neither prose nor a tool request.
       if (text.length === 0 && toolCalls.length === 0) {
         throw new LlmError('unknown', 'Model returned neither content nor a tool call');
       }
@@ -155,6 +180,71 @@ export class OpenAiProvider implements LlmProvider {
     }
     catch (error) {
       throw this.toLlmError(error, 'chat');
+    }
+  }
+
+  async chatStream(request: ChatRequest, onText: TextDeltaHandler): Promise<ChatResult> {
+    this.assertJsonModeIsUsable(request);
+
+    let streamed = '';
+
+    try {
+      const stream = this.client.chat.completions.stream({
+        ...this.toCreateParams(request),
+        // Usage is OMITTED from a streamed response unless asked for. Without
+        // this, every streamed answer would report zero tokens and the cost
+        // figures in the logs would quietly become fiction — the worst kind of
+        // metric, one that looks like data.
+        stream_options: { include_usage: true },
+      });
+
+      // The SDK accumulates tool-call fragments for us; only content is
+      // reported incrementally, which is exactly the interface's contract.
+      stream.on('content', (delta) => {
+        streamed += delta;
+        onText(delta);
+      });
+
+      const completion = await stream.finalChatCompletion();
+      const choice = completion.choices[0];
+      const toolCalls = this.readToolCalls(choice?.message?.tool_calls);
+
+      if (streamed.length === 0 && toolCalls.length === 0) {
+        throw new LlmError('unknown', 'Model returned neither content nor a tool call');
+      }
+
+      // `text` IS THE STREAMED TEXT, not the SDK's reassembled content, and
+      // that makes the interface's contract true by construction rather than
+      // by assumption. The answering service publishes the deltas and runs the
+      // fabricated-amount guardrail over `text`; if those two could differ, a
+      // figure could be published that the guardrail never examined.
+      //
+      // The two should be identical. A warning rather than a throw if they are
+      // not, because the streamed text has already reached the customer and
+      // failing the request now would not unsend it — but the divergence is
+      // worth seeing in the logs.
+      const assembled = choice?.message?.content ?? '';
+      if (assembled !== streamed) {
+        this.logger.warn(
+          `chatStream: assembled content differs from the streamed deltas ` +
+          `(${assembled.length} vs ${streamed.length} characters). Publishing the ` +
+          `streamed text, which is what the customer saw.`,
+        );
+      }
+
+      return {
+        text: streamed,
+        toolCalls,
+        finishReason: this.toFinishReason(choice?.finish_reason),
+        model: completion.model,
+        usage: {
+          inputTokens: completion.usage?.prompt_tokens ?? 0,
+          outputTokens: completion.usage?.completion_tokens ?? 0,
+        },
+      };
+    }
+    catch (error) {
+      throw this.toLlmError(error, 'chatStream');
     }
   }
 
