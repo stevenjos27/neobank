@@ -1,11 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { setAuthCookies } from "@/lib/server/auth-cookies";
 
+/**
+ * Pages that require a session.
+ *
+ * A list rather than "everything except /login and /register". Protecting by
+ * exclusion makes every new page private by default, which sounds safer until
+ * the page you forgot to exclude is /login itself and the result is a redirect
+ * loop.
+ *
+ * /accounts was absent before /assistant was added, so an unauthenticated
+ * visitor to an account page got a rendered shell whose server fetch 401'd —
+ * "Could not load your accounts" instead of the login screen. Fixed here
+ * rather than left out to keep the diff narrow: a security-relevant list that
+ * is knowingly incomplete is worse than a slightly wider change.
+ */
+const PROTECTED = ['/dashboard', '/accounts', '/assistant'];
+
 export async function proxy(request: NextRequest) {
   const accessToken = request.cookies.get('accessToken')?.value;
   const refreshToken = request.cookies.get('refreshToken')?.value;
 
-  if (request.nextUrl.pathname.startsWith('/dashboard') && !accessToken && !refreshToken) {
+  const needsSession = PROTECTED.some((prefix) =>
+    request.nextUrl.pathname.startsWith(prefix),
+  );
+
+  if (needsSession && !accessToken && !refreshToken) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 

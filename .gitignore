@@ -54,3 +54,8 @@ out
 /apps/web/.env.local
 
 prisma/.seed-facts.json
+
+# TypeScript incremental build cache. Written by `tsc -p` on any project with
+# `incremental` set — apps/web, via Next's tsconfig. It is a local cache keyed
+# to one machine's file timestamps and is worthless to anyone else.
+*.tsbuildinfo
