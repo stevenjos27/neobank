@@ -12,6 +12,18 @@
         "cwd": "apps/web"
       },
       "continuous": true
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default"
+      ],
+      "outputs": [],
+      "options": {
+        "command": "tsc -p apps/web/tsconfig.json --noEmit"
+      }
     }
   }
 }
