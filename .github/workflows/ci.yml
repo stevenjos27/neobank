@@ -61,6 +61,13 @@ jobs:
       - run: pnpm nx e2e api-e2e
       - name: Lint, typecheck, test, and build
         run: pnpm exec nx run-many -t lint typecheck test build
+      # Bundles iOS and Android to Hermes bytecode, exactly as a release
+      # build would, from a Linux runner with no Xcode or Android SDK.
+      # run-many above already covers mobile's lint, typecheck and test; this
+      # is the one thing it cannot, since no other project has an export
+      # target. Uncached by design: it is only evidence if it actually runs.
+      - name: Mobile release bundles (iOS + Android)
+        run: pnpm nx run mobile:export
       - name: Start API
         run: |
           pnpm nx serve api &

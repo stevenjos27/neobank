@@ -1,3 +1,17 @@
+# Only apps/mobile is a workspace package, deliberately.
+#
+# Everything else in this repo (api, web, libs) installs from the ROOT
+# package.json under one version of each dependency. React Native cannot
+# join that: it requires the exact React version its renderer was built
+# against (19.2.3 for SDK 57), and pinning the root to that would downgrade
+# the web app. As its own package, mobile gets its own React and web keeps
+# its own. One React per app.
+#
+# Listing apps/web or libs/* here would change how THEY install. Leave them
+# out until that is a deliberate decision of its own.
+packages:
+  - apps/mobile
+
 autoInstallPeers: true
 allowBuilds:
   '@parcel/watcher': false

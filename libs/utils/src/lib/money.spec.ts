@@ -41,3 +41,32 @@ describe('formatPaise', () => {
     expect(formatPaise('-500000')).toBe('-₹5,000.00');
   });
 });
+
+/**
+ * Every place the Indian grouping rule changes behaviour.
+ *
+ * The rule: the last three digits form one group, and everything to the left
+ * is grouped in twos. So the first separator appears at four digits, and the
+ * first TWO-digit group at six (one lakh). The cases above jump from four
+ * digits to seven and then to eighteen, so a grouper that got either
+ * boundary wrong could pass them all.
+ *
+ * These were added BEFORE formatPaise stopped using Intl, and were first run
+ * against the Intl implementation. The expected strings are therefore Node's
+ * ICU output, not hand-written opinions, and any replacement has to match
+ * them byte for byte.
+ */
+describe('formatPaise — Indian grouping boundaries', () => {
+  it.each([
+    ['10', '₹0.10'],                     // paise with a trailing zero
+    ['99900', '₹999.00'],                // three digits: no separator yet
+    ['100000', '₹1,000.00'],             // four: first separator
+    ['1000000', '₹10,000.00'],           // five
+    ['10000000', '₹1,00,000.00'],        // six: one lakh, first two-digit group
+    ['100000000', '₹10,00,000.00'],      // seven
+    ['1000000000', '₹1,00,00,000.00'],   // eight: one crore
+    ['-10000000', '-₹1,00,000.00'],      // sign on a grouped amount
+  ])('formats %s paise as %s', (paise, expected) => {
+    expect(formatPaise(paise)).toBe(expected);
+  });
+});
