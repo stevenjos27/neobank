@@ -1,6 +1,9 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "strict": true
+    "strict": true,
+    "paths": {
+      "@neobank/utils": ["../../libs/utils/src/index.ts"]
+    }
   }
 }
