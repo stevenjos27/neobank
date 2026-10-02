@@ -1,14 +1,16 @@
-import { TextDecoder, TextEncoder } from 'node:util';
-import { AskEvent, ByteReader, readFrames } from './ask-stream';
+import { AskEvent, ByteReader, readFrames } from './ask-events';
 
 /**
- * jsdom provides neither TextEncoder nor TextDecoder, and next/jest does not
- * add them. Both exist natively in every browser this app targets, so this
- * supplies them to the TEST ENVIRONMENT, not to the app. Assigning
- * unconditionally is safe where they already exist — Node's are the same
- * WHATWG implementation.
+ * Runs under Jest's `node` environment, which provides TextDecoder and
+ * TextEncoder natively. (In apps/web, where this spec used to live, it ran
+ * under jsdom, which has neither, and installed Node's by hand.)
+ *
+ * WHAT THIS SPEC DOES NOT PROVE: that the decoder on a phone behaves the same.
+ * Node's decoder is not the one Hermes uses — Hermes ships none, and Expo
+ * installs a JavaScript polyfill. That is checked on the device, by
+ * apps/mobile/decoder-check.ts. This spec proves the PARSER's handling of
+ * split frames and split characters, given a correct decoder.
  */
-Object.assign(globalThis, { TextDecoder, TextEncoder });
 
 /**
  * Chunk boundaries are the entire subject of this file.

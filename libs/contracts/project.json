@@ -1,0 +1,26 @@
+{
+  "name": "contracts",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/contracts/src",
+  "projectType": "library",
+  "tags": [],
+  "// targets": "test and lint are inferred (jest.config.cts, eslint.config.mjs)",
+  "targets": {
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "default",
+        "^default"
+      ],
+      "outputs": [],
+      "options": {
+        "commands": [
+          "tsc -p libs/contracts/tsconfig.lib.json --noEmit",
+          "tsc -p libs/contracts/tsconfig.spec.json --noEmit"
+        ],
+        "parallel": false
+      }
+    }
+  }
+}

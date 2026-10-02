@@ -29,7 +29,10 @@
           "buildDepsName": "build-deps",
           "watchDepsName": "watch-deps"
         }
-      }
+      },
+      "exclude": [
+        "libs/contracts/**/*"
+      ]
     },
     {
       "plugin": "@nx/eslint/plugin",
