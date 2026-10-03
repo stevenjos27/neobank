@@ -32,7 +32,7 @@ export type DecoderReport = {
 const TEXT = 'You spent ₹57,011.90 in August 2026.';
 
 /** UTF-8 for the Basic Multilingual Plane, by hand. Enough for ₹ and ASCII. */
-function utf8(s: string): Uint8Array {
+export function utf8(s: string): Uint8Array {
   const out: number[] = [];
   for (const ch of s) {
     const cp = ch.codePointAt(0) ?? 0;

@@ -4,7 +4,8 @@
     "strict": true,
     "types": ["jest"],
     "paths": {
-      "@neobank/utils": ["../../libs/utils/src/index.ts"]
+      "@neobank/utils": ["../../libs/utils/src/index.ts"],
+      "@neobank/contracts": ["../../libs/contracts/src/index.ts"]
     }
   }
 }

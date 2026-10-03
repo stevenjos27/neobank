@@ -1,7 +1,10 @@
+import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { formatPaise } from '@neobank/utils';
 import { runDecoderChecks, visible } from './decoder-check';
+import type { DecoderCheck } from './decoder-check';
+import { runFrameCheck } from './frames-check';
 
 /**
  * Device diagnostics for Phase 4's foundation steps.
@@ -11,7 +14,9 @@ import { runDecoderChecks, visible } from './decoder-check';
  * Its first run found Hermes rejecting BigInt in Intl (0/9 on both platforms);
  * formatPaise no longer uses Intl.
  *
- * 0b — does the stream decoder keep a split ₹ intact? See decoder-check.ts.
+ * 0b — does the stream decoder keep a split ₹ intact (decoder-check.ts), and
+ * does the SHARED parser from @neobank/contracts read real frames delivered
+ * one byte at a time (frames-check.ts)?
  *
  * Temporary. Replaced by the real app in Step 2.
  */
@@ -92,6 +97,27 @@ for (const c of DECODER.checks) {
 }
 
 export default function App() {
+  // The frame check is async (readFrames awaits each read), so it cannot run
+  // at module scope like the others. null until it settles.
+  const [frames, setFrames] = useState<DecoderCheck | null>(null);
+
+  useEffect(() => {
+    // Guards against setting state after unmount: the check is a promise that
+    // can settle after the component is gone (a fast reload, or a test that
+    // has already finished).
+    let mounted = true;
+    runFrameCheck().then((check) => {
+      console.log(
+        `[0b] readFrames on ${Platform.OS}/${ENGINE}: ` +
+          `${check.pass ? 'ok' : 'FAIL'} — ${check.detail}`,
+      );
+      if (mounted) setFrames(check);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
       <Text style={styles.title}>
@@ -131,6 +157,22 @@ export default function App() {
           <Text style={styles.mono}>{c.detail}</Text>
         </View>
       ))}
+
+      <Text style={[styles.title, styles.section]}>
+        @neobank/contracts · readFrames
+      </Text>
+      <View style={styles.row}>
+        {frames === null ? (
+          <Text style={styles.mono}>running…</Text>
+        ) : (
+          <>
+            <Text style={frames.pass ? styles.ok : styles.bad}>
+              {frames.pass ? '✓' : '✗'} {frames.label}
+            </Text>
+            <Text style={styles.mono}>{frames.detail}</Text>
+          </>
+        )}
+      </View>
 
       <StatusBar style="dark" />
     </ScrollView>
