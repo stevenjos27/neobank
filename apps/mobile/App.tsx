@@ -1,20 +1,24 @@
+import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { formatPaise } from '@neobank/utils';
+import { runDecoderChecks, visible } from './decoder-check';
+import type { DecoderCheck } from './decoder-check';
+import { runFrameCheck } from './frames-check';
 
 /**
- * Phase 4, Step 0a: does the SHARED money formatter produce, on a phone, the
- * exact strings it produces on Node?
+ * Device diagnostics for Phase 4's foundation steps.
  *
- * The cases and expected strings are copied verbatim from
- * libs/utils/src/lib/money.spec.ts, both blocks. That spec runs on Node. On a
- * phone the code runs on Hermes, and a green Jest run cannot speak for it.
+ * 0a — does the SHARED money formatter produce, on Hermes, the exact strings
+ * it produces on Node? Cases copied verbatim from libs/utils/src/lib/money.spec.ts.
+ * Its first run found Hermes rejecting BigInt in Intl (0/9 on both platforms);
+ * formatPaise no longer uses Intl.
  *
- * This screen's first run found exactly that: Hermes throws "Cannot convert
- * BigInt to number" from Intl.NumberFormat, on iOS and Android, so all nine
- * cases failed. formatPaise no longer uses Intl. This run is the proof.
+ * 0b — does the stream decoder keep a split ₹ intact (decoder-check.ts), and
+ * does the SHARED parser from @neobank/contracts read real frames delivered
+ * one byte at a time (frames-check.ts)?
  *
- * Temporary. It is replaced by the real app in Step 2.
+ * Temporary. Replaced by the real app in Step 2.
  */
 
 type Case = { label: string; input: string | bigint; expected: string };
@@ -65,26 +69,15 @@ function run(c: Case): Result {
   return { ...c, actual, pass: actual === c.expected };
 }
 
-/**
- * Makes invisible differences visible: anything outside printable ASCII,
- * except ₹ itself, is printed as its code point.
- */
-function visible(s: string): string {
-  return Array.from(s)
-    .map((ch) => {
-      const cp = ch.codePointAt(0) ?? 0;
-      if ((cp >= 0x20 && cp <= 0x7e) || ch === '₹') return ch;
-      return `\\u{${cp.toString(16)}}`;
-    })
-    .join('');
-}
-
 const RESULTS = CASES.map(run);
 const PASSED = RESULTS.filter((r) => r.pass).length;
 const ENGINE =
   (globalThis as { HermesInternal?: unknown }).HermesInternal != null
     ? 'Hermes'
     : 'NOT Hermes';
+
+const DECODER = runDecoderChecks();
+const DECODER_PASSED = DECODER.checks.filter((c) => c.pass).length;
 
 console.log(
   `[0a] formatPaise on ${Platform.OS}/${ENGINE}: ${PASSED}/${RESULTS.length} passed`,
@@ -95,7 +88,36 @@ for (const r of RESULTS.filter((x) => !x.pass)) {
   );
 }
 
+console.log(
+  `[0b] TextDecoder on ${Platform.OS}/${ENGINE} (${DECODER.implementation}): ` +
+    `${DECODER_PASSED}/${DECODER.checks.length} passed`,
+);
+for (const c of DECODER.checks) {
+  console.log(`[0b] ${c.pass ? 'ok  ' : 'FAIL'} ${c.label}: ${c.detail}`);
+}
+
 export default function App() {
+  // The frame check is async (readFrames awaits each read), so it cannot run
+  // at module scope like the others. null until it settles.
+  const [frames, setFrames] = useState<DecoderCheck | null>(null);
+
+  useEffect(() => {
+    // Guards against setting state after unmount: the check is a promise that
+    // can settle after the component is gone (a fast reload, or a test that
+    // has already finished).
+    let mounted = true;
+    runFrameCheck().then((check) => {
+      console.log(
+        `[0b] readFrames on ${Platform.OS}/${ENGINE}: ` +
+          `${check.pass ? 'ok' : 'FAIL'} — ${check.detail}`,
+      );
+      if (mounted) setFrames(check);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
       <Text style={styles.title}>
@@ -113,6 +135,45 @@ export default function App() {
           <Text style={styles.mono}>actual {visible(r.actual)}</Text>
         </View>
       ))}
+
+      <Text style={[styles.title, styles.section]}>
+        TextDecoder · {DECODER.implementation}
+      </Text>
+      <Text
+        style={
+          DECODER_PASSED === DECODER.checks.length ? styles.ok : styles.bad
+        }
+      >
+        {DECODER_PASSED}/{DECODER.checks.length} decoder checks
+      </Text>
+      {DECODER.checks.map((c) => (
+        <View key={c.label} style={styles.row}>
+          {/* ✓ / ✗, not PASS / FAIL: App.test.tsx counts exactly seventeen
+              "PASS · " rows for the money checks, and these must not be
+              mistaken for them. */}
+          <Text style={c.pass ? styles.ok : styles.bad}>
+            {c.pass ? '✓' : '✗'} {c.label}
+          </Text>
+          <Text style={styles.mono}>{c.detail}</Text>
+        </View>
+      ))}
+
+      <Text style={[styles.title, styles.section]}>
+        @neobank/contracts · readFrames
+      </Text>
+      <View style={styles.row}>
+        {frames === null ? (
+          <Text style={styles.mono}>running…</Text>
+        ) : (
+          <>
+            <Text style={frames.pass ? styles.ok : styles.bad}>
+              {frames.pass ? '✓' : '✗'} {frames.label}
+            </Text>
+            <Text style={styles.mono}>{frames.detail}</Text>
+          </>
+        )}
+      </View>
+
       <StatusBar style="dark" />
     </ScrollView>
   );
@@ -120,8 +181,8 @@ export default function App() {
 
 const mono = Platform.select({ ios: 'Menlo', default: 'monospace' });
 
-// Every colour is explicit. The first run showed why: Expo Go rendered a dark
-// background, and any Text without a colour defaulted to black on black.
+// Every colour is explicit. Expo Go renders a dark background, and any Text
+// without a colour defaults to black on black.
 const INK = '#111827';
 const PAPER = '#ffffff';
 
@@ -129,6 +190,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: PAPER },
   container: { paddingTop: 64, paddingHorizontal: 16, paddingBottom: 32 },
   title: { color: INK, fontSize: 18, fontWeight: '600', marginBottom: 4 },
+  section: { marginTop: 32 },
   row: { marginTop: 12 },
   ok: { color: '#15803d', fontWeight: '600' },
   bad: { color: '#b91c1c', fontWeight: '600' },

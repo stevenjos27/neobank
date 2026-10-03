@@ -16,7 +16,8 @@
     "strict": false,
     "paths": {
       "@neobank/utils": ["./libs/utils/src/index.ts"],
-      "@neobank/prisma": ["./generated/prisma/client.ts"]
+      "@neobank/prisma": ["./generated/prisma/client.ts"],
+      "@neobank/contracts": ["./libs/contracts/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

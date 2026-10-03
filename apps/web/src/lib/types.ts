@@ -1,35 +1,23 @@
-export type Account = {
-  id: string;
-  accountNumber: string;
-  type: 'SAVINGS' | 'CURRENT';
-  balancePaise: string;
-  currency: string;
-  createdAt: string;
-};
-
-export type Transaction = {
-  id: string;
-  accountId: string;
-  type: 'DEPOSIT' | 'WITHDRAWAL' | 'TRANSFER_IN' | 'TRANSFER_OUT';
-  amountPaise: string;
-  description: string | null;
-  createdAt: string;
-};
-
-export type TransactionPage = {
-  items: Transaction[];
-  nextCursor: string | null;
-};
-
-export type Payee = {
-  id: string;
-  name: string;
-  accountNumber: string;
-  ifsc: string;
-  createdAt: string;
-};
-
-export type PayeeVerification = {
-  accountNumber: string;
-  beneficiaryName: string;
-};
+/**
+ * Re-exports the API types from @neobank/contracts, where they now live.
+ *
+ * KEPT SO THE EIGHT IMPORT SITES DO NOT CHURN. Dashboard, ledger, transfer and
+ * payee components import from '@/lib/types'. Pointing this file at the shared
+ * library moves every one of them in a single line, and keeps the commit that
+ * introduced the library small enough to review — a failure in web's build or
+ * tests then has to be about the move, not about a typo in one of eight files.
+ *
+ * NEW CODE SHOULD IMPORT FROM @neobank/contracts DIRECTLY. This file is a
+ * compatibility seam, not a second home for the types; nothing new belongs
+ * here.
+ *
+ * `export type`, because apps/web sets isolatedModules: SWC compiles one file
+ * at a time and must be told these names vanish at runtime.
+ */
+export type {
+  Account,
+  Payee,
+  PayeeVerification,
+  Transaction,
+  TransactionPage,
+} from '@neobank/contracts';

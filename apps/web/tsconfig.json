@@ -24,7 +24,8 @@
     "types": ["jest", "node"],
     "paths": {
       "@/*": ["./src/*"],
-      "@neobank/utils": ["../../libs/utils/src/index.ts"]
+      "@neobank/utils": ["../../libs/utils/src/index.ts"],
+      "@neobank/contracts": ["../../libs/contracts/src/index.ts"]
     }
   },
   "include": [
