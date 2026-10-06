@@ -62,7 +62,6 @@ pnpm nx dev web                      # http://localhost:4200
 ```
 DATABASE_URL="postgresql://neobank:neobank_dev@localhost:5432/neobank"
 JWT_ACCESS_SECRET="dev-access-secret-change-me"
-JWT_REFRESH_SECRET="dev-refresh-secret-change-me"
 WEB_ORIGINS="http://localhost:4200"
 ```
 
