@@ -44,14 +44,19 @@ export async function cleanTestData(prisma: PrismaClient): Promise<number> {
   const accountIds = victims.flatMap((u) => u.accounts.map((a) => a.id));
 
   // Order matters: no cascade is declared, so children go first.
+  // Refresh tokens hang off sessions, which hang off users: tokens, then
+  // sessions, then (with the ledger) the users themselves.
   const txns = await prisma.transaction.deleteMany({ where: { accountId: { in: accountIds } } });
   const payees = await prisma.payee.deleteMany({ where: { userId: { in: userIds } } });
+  const tokens = await prisma.refreshToken.deleteMany({ where: { session: { userId: { in: userIds } } } });
+  const sessions = await prisma.session.deleteMany({ where: { userId: { in: userIds } } });
   const accounts = await prisma.account.deleteMany({ where: { id: { in: accountIds } } });
   const users = await prisma.user.deleteMany({ where: { id: { in: userIds } } });
 
   console.log(
     `✓ purged ${users.count} e2e users · ${accounts.count} accounts · ` +
-    `${txns.count} transactions · ${payees.count} payees`,
+    `${txns.count} transactions · ${payees.count} payees · ` +
+    `${sessions.count} sessions · ${tokens.count} refresh tokens`,
   );
   return users.count;
 }
