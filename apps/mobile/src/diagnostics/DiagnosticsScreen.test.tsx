@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react-native';
-import App from './App';
+import DiagnosticsScreen from './DiagnosticsScreen';
 
 /**
  * WHAT THIS TEST PROVES, AND WHAT IT CANNOT.
@@ -19,12 +19,12 @@ import App from './App';
  * Every screen from Step 2 on is tested through this harness, so it has to
  * be proven before there is anything worth testing with it.
  */
-describe('App (Phase 4 Step 0 check screen)', () => {
+describe('DiagnosticsScreen (Phase 4 Step 0 checks, now the /diagnostics route)', () => {
   it('renders every formatPaise case, and every case matches', async () => {
     // RNTL 14 renders asynchronously: render() returns a promise that
     // settles once React has committed. Not awaiting it would query a tree
     // that may not exist yet.
-    await render(<App />);
+    await render(<DiagnosticsScreen />);
 
     // The summary line…
     expect(screen.getByText('17/17 match Node')).toBeOnTheScreen();
@@ -40,7 +40,7 @@ describe('App (Phase 4 Step 0 check screen)', () => {
   });
 
   it('parses the shared wire format one byte per read', async () => {
-    await render(<App />);
+    await render(<DiagnosticsScreen />);
 
     // findBy* polls inside act() until the effect has run and React has
     // committed its result. Two jobs in one: it waits (no act warning, no

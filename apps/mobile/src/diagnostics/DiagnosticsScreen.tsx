@@ -96,7 +96,7 @@ for (const c of DECODER.checks) {
   console.log(`[0b] ${c.pass ? 'ok  ' : 'FAIL'} ${c.label}: ${c.detail}`);
 }
 
-export default function App() {
+export default function DiagnosticsScreen() {
   // The frame check is async (readFrames awaits each read), so it cannot run
   // at module scope like the others. null until it settles.
   const [frames, setFrames] = useState<DecoderCheck | null>(null);
@@ -148,7 +148,7 @@ export default function App() {
       </Text>
       {DECODER.checks.map((c) => (
         <View key={c.label} style={styles.row}>
-          {/* ✓ / ✗, not PASS / FAIL: App.test.tsx counts exactly seventeen
+          {/* ✓ / ✗, not PASS / FAIL: DiagnosticsScreen.test.tsx counts exactly seventeen
               "PASS · " rows for the money checks, and these must not be
               mistaken for them. */}
           <Text style={c.pass ? styles.ok : styles.bad}>
