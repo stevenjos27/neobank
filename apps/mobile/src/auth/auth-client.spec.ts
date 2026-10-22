@@ -317,7 +317,7 @@ describe('logout', () => {
   });
 
   it('rule 6: still clears locally when the API cannot be reached', async () => {
-    const { api, store, client, events } = await signedIn();
+    const { store, events } = await signedIn();
     const offline = createAuthClient({
       baseUrl: BASE,
       store,
