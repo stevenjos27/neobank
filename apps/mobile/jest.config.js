@@ -5,9 +5,9 @@
  *
  * Jest does not read tsconfig `paths`, so every workspace alias mobile uses is
  * mapped here as well, to the same source file tsconfig.json points at. Two
- * declarations of one alias is a drift risk; the App test renders screens
- * that import both aliases, so a mapping that disagrees with tsconfig fails
- * there rather than silently.
+ * declarations of one alias is a drift risk; the diagnostics screen test
+ * renders code that imports both aliases, so a mapping that disagrees with
+ * tsconfig fails there rather than silently.
  *
  * jest-expo installs Expo's runtime globals (its setup requires
  * expo/src/winter), so tests here use Expo's TextDecoder polyfill — the same
