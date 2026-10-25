@@ -14,7 +14,7 @@ describe('NoConnectionScreen', () => {
     await render(<NoConnectionScreen />);
 
     expect(
-      screen.getByRole('header', { name: /can.t reach neobank/i }),
+      screen.getByRole('header', { name: /^Can.t reach NeoBank$/ }),
     ).toBeOnTheScreen();
     expect(screen.getByText(/still signed in/)).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();

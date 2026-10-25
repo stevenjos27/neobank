@@ -32,7 +32,7 @@ export default function NoConnectionScreen() {
     <SafeAreaView style={styles.screen}>
       <View style={styles.body}>
         <Text style={styles.title} accessibilityRole="header">
-          Can't reach Neobank
+          Can't reach NeoBank
         </Text>
         <Text style={styles.message}>
           Check your internet connection and try again. You’re still signed in.
