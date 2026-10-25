@@ -22,6 +22,7 @@ export function fakeAuth(overrides: Partial<AuthContextValue> = {}): AuthContext
     signOut: jest.fn(async () => undefined),
     retry: jest.fn(async () => undefined),
     apiFetch: jest.fn(),
+    debug: null,
     ...overrides,
   };
 }

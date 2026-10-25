@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { formatPaise } from '@neobank/utils';
@@ -96,7 +97,12 @@ for (const c of DECODER.checks) {
   console.log(`[0b] ${c.pass ? 'ok  ' : 'FAIL'} ${c.label}: ${c.detail}`);
 }
 
-export default function DiagnosticsScreen() {
+/**
+ * `footer`: extra dev panels rendered at the end of the scroll view (the
+ * route passes AuthDebugPanel). Optional, so this screen and its test know
+ * nothing about auth.
+ */
+export default function DiagnosticsScreen({ footer }: { footer?: ReactNode }) {
   // The frame check is async (readFrames awaits each read), so it cannot run
   // at module scope like the others. null until it settles.
   const [frames, setFrames] = useState<DecoderCheck | null>(null);
@@ -173,6 +179,8 @@ export default function DiagnosticsScreen() {
           </>
         )}
       </View>
+
+      {footer}
 
       <StatusBar style="dark" />
     </ScrollView>

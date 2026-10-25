@@ -41,6 +41,8 @@ export interface AuthContextValue {
   /** From 'unreachable' only: check the stored session again. */
   retry(): Promise<void>;
   apiFetch: AuthClient['apiFetch'];
+  /** Dev-only diagnostics hooks; null in release builds. */
+  debug: AuthClient['debug'] | null;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -151,6 +153,7 @@ export function AuthProvider({
       signOut,
       retry,
       apiFetch: client.apiFetch,
+      debug: __DEV__ ? client.debug : null,
     }),
     [status, locked, signIn, unlock, signOut, retry, client],
   );
